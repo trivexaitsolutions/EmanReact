@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../../constants/api";
 
 export default function WorkerLoginScreen() {
   const [loginId, setLoginId] = useState(""); // Handles both email and phone now!
@@ -21,7 +22,7 @@ export default function WorkerLoginScreen() {
 
   // IMPORTANT: Update this with your PC's actual IPv4 address!
   // Notice the path is now /api/worker/login
-  const API_URL = "http://10.80.154.24:4000/api";
+  // const API_URL = "http://192.168.0.103:4000/api";
 
   const handleLogin = async () => {
     if (!loginId || password.length === 0) {

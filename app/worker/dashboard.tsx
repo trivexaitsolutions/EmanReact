@@ -15,8 +15,9 @@ import {
   Vibration,
   View,
 } from "react-native";
+import { API_URL } from "../../constants/api";
 
-const API_URL = "http://192.168.0.103:4000/api";
+// const API_URL = "http://192.168.0.103:4000/api";
 
 export default function WorkerDashboard() {
   const [worker, setWorker] = useState<any>(null);
@@ -52,13 +53,30 @@ export default function WorkerDashboard() {
     }).start(({ finished }) => {
       if (finished) {
         Vibration.vibrate([0, 100, 50, 100]);
-        router.replace("/worker/active-duty");
+        // YAHAN CHANGE KAREIN: Sidha route karne ki jagah backend ko update karein
+        setAvailable();
       }
     });
   };
 
   const handleHoldRelease = () => {
     Animated.spring(holdAnim, { toValue: 0, useNativeDriver: false }).start();
+  };
+
+  const setAvailable = async () => {
+    try {
+      const response = await axios.post(`${API_URL}/worker/update-status`, {
+        workerId: worker.id,
+        status: true,
+      });
+
+      if (response.data.success) {
+        Alert.alert("Kaam Shuru", "Aap ab kaam ke liye Live hain!");
+        router.replace("/worker/active-duty");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Server se connect nahi ho paya");
+    }
   };
 
   const progressWidth = holdAnim.interpolate({
@@ -117,7 +135,9 @@ export default function WorkerDashboard() {
           <View style={styles.photoBox}>
             {worker.photoUrl ? (
               <Image
-                source={{ uri: `http://10.80.154.24:4000${worker.photoUrl}` }}
+                source={{
+                  uri: `${API_URL.replace("/api", "")}${worker.photoUrl}`,
+                }}
                 style={styles.avatar}
               />
             ) : (

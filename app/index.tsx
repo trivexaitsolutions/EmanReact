@@ -56,7 +56,7 @@ export default function RoleSelectionScreen() {
 
         <TouchableOpacity
           style={[styles.cardButton, { backgroundColor: "#3B82F6" }]}
-          onPress={() => alert("Customer App coming soon!")}
+          onPress={() => router.push("/user/login")}
         >
           <Text style={styles.cardTitle}>I am a User</Text>
           <Text style={styles.cardSub}>Hire skilled daily-wage labor</Text>
