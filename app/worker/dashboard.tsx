@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { registerForPushNotificationsAsync } from "../../utils/pushToken";
 
 // const API_URL = "http://192.168.0.103:4000/api";
 
@@ -26,6 +27,40 @@ export default function WorkerDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    const setupNotifications = async () => {
+      try {
+        // 1. Sabse pehle local storage se Worker ki ID nikalo
+        const session = await AsyncStorage.getItem("workerSession");
+        if (!session) return; // Agar login nahi hai, toh ruk jao
+        const parsedData = JSON.parse(session);
+        const currentWorkerId = parsedData.id;
+
+        // 2. Ab Token generate karo
+        const token = await registerForPushNotificationsAsync();
+
+        if (token) {
+          console.log("Dashboard ko token mil gaya: ", token);
+
+          // 3. API URL theek kiya aur currentWorkerId pass kiya
+          const response = await axios.post(
+            `${API_URL}/worker/save-push-token`,
+            {
+              workerId: currentWorkerId,
+              pushToken: token,
+            },
+          );
+
+          if (response.data.success) {
+            console.log("✅ Token successfully Database me save ho gaya!");
+          }
+        }
+      } catch (error: any) {
+        console.log("Token lene me error aaya: " + error.message);
+      }
+    };
+
+    setupNotifications();
   }, []);
 
   const fetchDashboardData = async () => {
