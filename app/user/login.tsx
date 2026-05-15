@@ -1,17 +1,19 @@
 // app/user/login.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
 import { router, Stack } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
@@ -85,6 +87,34 @@ export default function CustomerLoginScreen() {
     }
   };
 
+  const getPushToken = async () => {
+    let token;
+    if (Device.isDevice) {
+      // Token sirf asli phone me generate hota hai
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== "granted") {
+        console.log("Permission not granted for Push Notifications");
+        return null;
+      }
+      try {
+        // Token nikalne ka Expo method
+        token = (await Notifications.getExpoPushTokenAsync()).data;
+        console.log("Customer Push Token Generated:", token);
+      } catch (error) {
+        console.log("Token generation error:", error);
+      }
+    } else {
+      console.log("Must use physical device for Push Notifications");
+    }
+    return token;
+  };
+
   const handleVerifyOtp = async () => {
     if (otp.length < 4) {
       Alert.alert("Error", "Sahi OTP daalein.");
@@ -92,10 +122,12 @@ export default function CustomerLoginScreen() {
     }
 
     setIsLoading(true);
+    const expoPushToken = await getPushToken();
     try {
       const response = await axios.post(`${API_URL}/user/verify-otp`, {
         customerId,
         otp: otp.trim(),
+        pushToken: expoPushToken, // 👈 Naya addition
       });
 
       if (response.data.success) {
@@ -103,7 +135,7 @@ export default function CustomerLoginScreen() {
           "customerSession",
           JSON.stringify(response.data.customer),
         );
-        Alert.alert("Welcome!", "Aapka login successful ho gaya hai.");
+        // Alert.alert("Welcome!", "Aapka login successful ho gaya hai.");
         router.replace("/user/dashboard");
       }
     } catch (error: any) {
