@@ -3,21 +3,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Stack, router } from "expo-router";
 import {
-    Calendar,
-    ChevronLeft,
-    Clock,
-    IndianRupee,
-    Users,
+  Calendar,
+  ChevronLeft,
+  Clock,
+  IndianRupee,
+  Users,
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
@@ -49,7 +49,25 @@ export default function BookingHistory() {
   };
 
   const renderBookingItem = ({ item }: any) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.7}
+      onPress={() => {
+        // 🚀 SMART ROUTING LOGIC YAHAN HAI
+        if (item.status === "COMPLETED" || item.status === "CANCELLED") {
+          router.push({
+            pathname: "/user/booking-details",
+            params: { id: item.id },
+          });
+        } else {
+          // ASSIGNED ya IN_PROGRESS ke liye naya page khulega
+          router.push({
+            pathname: "/user/active-booking",
+            params: { id: item.id },
+          });
+        }
+      }}
+    >
       <View style={styles.cardHeader}>
         <View style={styles.dateContainer}>
           <Calendar color="#6B7280" size={16} />
@@ -97,7 +115,7 @@ export default function BookingHistory() {
           <Text style={styles.detailValue}>₹{item.totalAmount}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
