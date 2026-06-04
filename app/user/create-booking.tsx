@@ -2,7 +2,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Stack, router } from "expo-router";
-import { ChevronDown, MapPin, Star, X } from "lucide-react-native";
+import {
+  CheckCircle2,
+  ChevronDown,
+  MapPin,
+  Star,
+  X,
+} from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -36,6 +42,12 @@ export default function CustomerDashboard() {
   const [address, setAddress] = useState("");
   const [landmark, setLandmark] = useState("");
 
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(
+    null,
+  );
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+
   // --- MODAL CONTROLS ---
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
   const [isNakaModalOpen, setIsNakaModalOpen] = useState(false);
@@ -47,7 +59,18 @@ export default function CustomerDashboard() {
   const loadData = async () => {
     try {
       const session = await AsyncStorage.getItem("customerSession");
-      if (session) setCustomer(JSON.parse(session));
+      if (session) {
+        const parsedCustomer = JSON.parse(session);
+        setCustomer(parsedCustomer);
+
+        const addressResponse = await axios.get(
+          `${API_URL}/user/customer-addresses/${parsedCustomer.id}`,
+        );
+
+        if (addressResponse.data.success) {
+          setSavedAddresses(addressResponse.data.addresses || []);
+        }
+      }
 
       const response = await axios.get(`${API_URL}/user/booking-options`);
       if (response.data.success) {
@@ -194,6 +217,47 @@ export default function CustomerDashboard() {
 
   const selectedCityObj: any = cities.find((c: any) => c.id === selectedCityId);
 
+  const cityMatchedAddresses = savedAddresses.filter((addr: any) => {
+    if (!selectedCityId) return false;
+
+    if (addr.cityId) {
+      return Number(addr.cityId) === Number(selectedCityId);
+    }
+
+    return (
+      String(addr.city || "")
+        .toLowerCase()
+        .trim() ===
+      String(selectedCityObj?.name || "")
+        .toLowerCase()
+        .trim()
+    );
+  });
+
+  const selectedAddress = savedAddresses.find(
+    (addr: any) => Number(addr.id) === Number(selectedAddressId),
+  );
+
+  const handleSelectSavedAddress = (addr: any) => {
+    setSelectedAddressId(addr.id);
+
+    const fullAddress = [addr.addressLine, addr.city, addr.state, addr.pincode]
+      .filter(Boolean)
+      .join(", ");
+
+    setAddress(fullAddress);
+
+    if (addr.landmark) {
+      setLandmark(addr.landmark);
+    }
+
+    if (addr.nakaId) {
+      setSelectedNakas([Number(addr.nakaId)]);
+    }
+
+    setIsAddressModalOpen(false);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -336,6 +400,52 @@ export default function CustomerDashboard() {
             </>
           )}
 
+          {selectedCityId && (
+            <>
+              <Text style={[styles.label, { marginTop: 15 }]}>
+                Saved Address
+              </Text>
+
+              <TouchableOpacity
+                style={styles.savedAddressBtn}
+                onPress={() => {
+                  if (cityMatchedAddresses.length === 0) {
+                    Alert.alert(
+                      "No Address Found",
+                      "Is city ke liye saved address nahi hai. Aap manually address enter kar sakte hain ya Profile me address add kar sakte hain.",
+                    );
+                    return;
+                  }
+
+                  setIsAddressModalOpen(true);
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.savedAddressTitle,
+                      !selectedAddress && { color: "#9CA3AF" },
+                    ]}
+                  >
+                    {selectedAddress
+                      ? selectedAddress.title || "Saved Address"
+                      : cityMatchedAddresses.length > 0
+                        ? "Choose saved address"
+                        : "No saved address for this city"}
+                  </Text>
+
+                  {selectedAddress ? (
+                    <Text style={styles.savedAddressSub} numberOfLines={1}>
+                      {selectedAddress.addressLine}
+                    </Text>
+                  ) : null}
+                </View>
+
+                <ChevronDown color="#6B7280" size={22} />
+              </TouchableOpacity>
+            </>
+          )}
+
           <Text style={[styles.label, { marginTop: 15 }]}>Exact Address</Text>
           <TextInput
             style={styles.textArea}
@@ -399,7 +509,10 @@ export default function CustomerDashboard() {
                   ]}
                   onPress={() => {
                     setSelectedCityId(item.id);
-                    setSelectedNakas([]); // City badalne par purane nakas clear
+                    setSelectedNakas([]);
+                    setSelectedAddressId(null);
+                    setAddress("");
+                    setLandmark("");
                     setIsCityModalOpen(false);
                   }}
                 >
@@ -477,6 +590,89 @@ export default function CustomerDashboard() {
             >
               <Text style={styles.doneBtnText}>DONE</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SAVED ADDRESS SELECT MODAL */}
+      <Modal
+        visible={isAddressModalOpen}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Saved Address</Text>
+              <TouchableOpacity onPress={() => setIsAddressModalOpen(false)}>
+                <X color="#000" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={cityMatchedAddresses}
+              keyExtractor={(item: any) => item.id.toString()}
+              renderItem={({ item }) => {
+                const isSelected =
+                  Number(selectedAddressId) === Number(item.id);
+
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.addressModalItem,
+                      isSelected && styles.addressModalItemActive,
+                    ]}
+                    onPress={() => handleSelectSavedAddress(item)}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.addressModalTitleRow}>
+                        <Text
+                          style={[
+                            styles.addressModalTitle,
+                            isSelected && styles.addressModalTitleActive,
+                          ]}
+                        >
+                          {item.title || "Saved Address"}
+                        </Text>
+
+                        {item.isDefault ? (
+                          <View style={styles.smallDefaultBadge}>
+                            <Text style={styles.smallDefaultBadgeText}>
+                              Default
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.addressModalText,
+                          isSelected && styles.addressModalTextActive,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {item.addressLine}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.addressModalSub,
+                          isSelected && styles.addressModalTextActive,
+                        ]}
+                      >
+                        {[item.nakaName, item.city, item.pincode]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </Text>
+                    </View>
+
+                    {isSelected ? (
+                      <CheckCircle2 color="#10B981" size={22} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
           </View>
         </View>
       </Modal>
@@ -708,4 +904,93 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   doneBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  savedAddressBtn: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  savedAddressTitle: {
+    fontSize: 15,
+    color: "#111827",
+    fontWeight: "800",
+  },
+
+  savedAddressSub: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+    marginTop: 4,
+  },
+
+  addressModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 15,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+    marginBottom: 10,
+  },
+
+  addressModalItemActive: {
+    borderColor: "#10B981",
+    backgroundColor: "#ECFDF5",
+  },
+
+  addressModalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+
+  addressModalTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#111827",
+  },
+
+  addressModalTitleActive: {
+    color: "#047857",
+  },
+
+  addressModalText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4B5563",
+    lineHeight: 18,
+  },
+
+  addressModalSub: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
+    marginTop: 5,
+  },
+
+  addressModalTextActive: {
+    color: "#047857",
+  },
+
+  smallDefaultBadge: {
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
+
+  smallDefaultBadgeText: {
+    color: "#047857",
+    fontSize: 9,
+    fontWeight: "900",
+  },
 });

@@ -3,66 +3,118 @@ import * as Notifications from "expo-notifications";
 import { Stack, router } from "expo-router";
 import { useEffect } from "react";
 
-// 1. Notification ka behaviour set karo (Foreground me alert aaye ya nahi)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true, // App ON hone par bhi banner dikhao
-    shouldPlaySound: true, // Ghanti bajao
+    shouldShowAlert: true,
+    shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
 
 export default function RootLayout() {
   useEffect(() => {
-    // 2. SCENARIO 1: App Background me tha ya Locked tha, aur user ne Notification par TAP kiya (Tap Event)
+    const handleNotificationData = (data: any) => {
+      console.log("Notification Data:", data);
+
+      if (!data?.action) return;
+
+      if (data.action === "OPEN_ACTIVE_DUTY") {
+        setTimeout(() => {
+          router.push("/worker/active-duty");
+        }, 500);
+        return;
+      }
+
+      if (data.action === "DUTY_COMPLETED") {
+        setTimeout(() => {
+          router.replace("/worker/dashboard");
+        }, 500);
+        return;
+      }
+
+      if (
+        data.action === "WORKER_CANCELLED_BY_CLIENT" ||
+        data.action === "BOOKING_CANCELLED_BY_CLIENT"
+      ) {
+        setTimeout(() => {
+          router.push({
+            pathname: "/worker/cancelled-duty",
+            params: {
+              type: String(data.action),
+              reason: String(data.reason || ""),
+              amount: String(data.amount || 0),
+              bookingId: String(data.bookingId || ""),
+              workerId: String(data.workerId || ""),
+            },
+          });
+        }, 500);
+        return;
+      }
+    };
+
     const responseListener =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
-
-        console.log("Worker tapped notification:", data);
-
-        // Agar backend se action aya hai
-        if (data && data.action === "OPEN_ACTIVE_DUTY") {
-          // Thoda timeout dete hain taaki app puri tarah load ho jaye
-          setTimeout(() => {
-            router.push("/worker/active-duty");
-          }, 500);
-        }
+        console.log("Notification tapped:", data);
+        handleNotificationData(data);
       });
 
-    // 3. SCENARIO 2: App ON hai (Foreground me hai) aur Notification aayi (Receive Event)
-    // SCENARIO 2: App ON hai aur Notification aayi (Receive Event)
     const notificationListener = Notifications.addNotificationReceivedListener(
       (notification) => {
         const data = notification.request.content.data;
-
-        if (data && data.action === "OPEN_ACTIVE_DUTY") {
-          router.push("/worker/active-duty");
-        }
-
-        // 🚀 NAYA LOGIC: Agar duty complete ho gayi toh free kar do!
-        if (data && data.action === "DUTY_COMPLETED") {
-          router.replace("/worker/dashboard");
-        }
+        console.log("Notification received:", data);
+        handleNotificationData(data);
       },
     );
 
-    // Cleanup: Jab app close ho toh listeners hata do
     return () => {
-      Notifications.removeNotificationSubscription(responseListener);
-      Notifications.removeNotificationSubscription(notificationListener);
+      responseListener.remove();
+      notificationListener.remove();
     };
   }, []);
 
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+
+      {/* User Screens */}
+      <Stack.Screen name="user/login" options={{ headerShown: false }} />
+      <Stack.Screen name="user/dashboard" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="user/create-booking"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="user/active-booking"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="user/booking-details"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="user/history" options={{ headerShown: false }} />
+      <Stack.Screen name="user/rating" options={{ headerShown: false }} />
+      <Stack.Screen name="user/profile" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="user/manage-addresses"
+        options={{ headerShown: false, animation: "slide_from_right" }}
+      />
+
+      {/* Worker Screens */}
+      <Stack.Screen name="worker/login" options={{ headerShown: false }} />
       <Stack.Screen name="worker/dashboard" options={{ headerShown: false }} />
-      {/* Humari nayi screen add ki */}
+      <Stack.Screen name="worker/available" options={{ headerShown: false }} />
       <Stack.Screen
         name="worker/active-duty"
         options={{ headerShown: false, animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="worker/cancelled-duty"
+        options={{ headerShown: false, animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="worker/duty-in-progress"
+        options={{ headerShown: false }}
       />
     </Stack>
   );

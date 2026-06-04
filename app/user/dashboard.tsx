@@ -3,27 +3,27 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack } from "expo-router";
 import {
-    ArrowRight,
-    Bell,
-    Clock,
-    History,
-    Home,
-    MapPin,
-    PhoneCall,
-    PlusSquare,
-    Settings,
-    User,
-    Wallet,
+  ArrowRight,
+  Bell,
+  Clock,
+  History,
+  Home,
+  MapPin,
+  PhoneCall,
+  PlusSquare,
+  Settings,
+  User,
+  Wallet,
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
@@ -272,7 +272,10 @@ export default function CustomerDashboard() {
           <Text style={styles.navText}>History</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push("/user/profile")}
+        >
           <User color="#9CA3AF" size={24} />
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
