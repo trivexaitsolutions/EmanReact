@@ -7,6 +7,7 @@ import { CheckCircle2, Phone, XCircle } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Modal,
   SafeAreaView,
@@ -44,6 +45,7 @@ export default function ActiveBooking() {
   const shownCancelledConflictIdsRef = useRef<number[]>([]);
   const [bookingCancelledByUser, setBookingCancelledByUser] = useState(false);
   const bookingCancelledByUserRef = useRef(false);
+  const completedAlertShownRef = useRef(false);
 
   useEffect(() => {
     fetchActiveBooking();
@@ -75,6 +77,32 @@ export default function ActiveBooking() {
           );
 
           setBooking(latestBooking);
+
+          if (
+            latestBooking.status === "COMPLETED" &&
+            !completedAlertShownRef.current
+          ) {
+            completedAlertShownRef.current = true;
+
+            Alert.alert(
+              "Work Completed",
+              "Sab workers ne duty complete kar di hai.",
+              [
+                {
+                  text: "Rate Workers",
+                  onPress: () =>
+                    router.replace({
+                      pathname: "/user/rating",
+                      params: {
+                        bookingId: String(latestBooking.id),
+                      },
+                    }),
+                },
+              ],
+            );
+
+            return;
+          }
 
           if (
             latestBooking.cancelledConflictInfo &&
@@ -371,6 +399,7 @@ export default function ActiveBooking() {
         {booking.workers.map((worker: any) => {
           let arrivedList: any[] = [];
           let cancelledList: any[] = [];
+          let completedList: any[] = [];
 
           try {
             arrivedList = JSON.parse(booking.arrivedWorkerIds || "[]");
@@ -384,10 +413,21 @@ export default function ActiveBooking() {
             cancelledList = [];
           }
 
+          try {
+            completedList = JSON.parse(booking.completedWorkerIds || "[]");
+          } catch (e) {
+            completedList = [];
+          }
+
           const hasArrived = arrivedList
             .map(Number)
             .includes(Number(worker.id));
+
           const isCancelled = cancelledList
+            .map(Number)
+            .includes(Number(worker.id));
+
+          const isCompleted = completedList
             .map(Number)
             .includes(Number(worker.id));
 
@@ -411,21 +451,28 @@ export default function ActiveBooking() {
                     {worker.name ? worker.name.charAt(0).toUpperCase() : "W"}
                   </Text>
                 </View>
+
                 <View style={styles.workerTextGroup}>
                   <Text style={styles.workerName}>
                     {worker.name || "Worker"}
                   </Text>
+
                   <Text style={styles.workerRole}>
                     ⭐ Verified Professional
                   </Text>
                 </View>
               </View>
 
-              {/* Naya Logic: Tick Mark ya Call Button */}
               {isCancelled ? (
                 <View style={styles.cancelledBadge}>
                   <XCircle color="#fff" size={15} />
                   <Text style={styles.cancelledBadgeText}>Cancelled</Text>
+                </View>
+              ) : isCompleted ? (
+                <View style={styles.completedWorkerBadge}>
+                  <Text style={styles.completedWorkerBadgeText}>
+                    Completed ✅
+                  </Text>
                 </View>
               ) : hasArrived ? (
                 <View style={styles.arrivedBadge}>
@@ -1275,5 +1322,17 @@ const styles = StyleSheet.create({
   workerSelectCheckSelected: {
     backgroundColor: "#10B981",
     color: "#FFFFFF",
+  },
+  completedWorkerBadge: {
+    backgroundColor: "#059669",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+  },
+
+  completedWorkerBadgeText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 12,
   },
 });

@@ -25,6 +25,19 @@ export default function RootLayout() {
         return;
       }
 
+      if (data.action === "RATE_CLIENT") {
+        setTimeout(() => {
+          router.push({
+            pathname: "/worker/rate-client",
+            params: {
+              bookingId: String(data.bookingId || ""),
+            },
+          });
+        }, 500);
+        return;
+      }
+
+      // Old fallback: agar kahi purana DUTY_COMPLETED action aaya to dashboard par bhej do
       if (data.action === "DUTY_COMPLETED") {
         setTimeout(() => {
           router.replace("/worker/dashboard");
@@ -114,6 +127,15 @@ export default function RootLayout() {
       />
       <Stack.Screen
         name="worker/duty-in-progress"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="worker/rate-client"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="worker/history" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="worker/booking-details"
         options={{ headerShown: false }}
       />
     </Stack>

@@ -5,13 +5,13 @@ import { router, Stack } from "expo-router";
 import { CheckCircle, Clock, MapPin } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
@@ -39,7 +39,7 @@ export default function DutyInProgress() {
         } else {
           // Agar 404 ya koi data nahi mila, tabhi dashboard bhejien
           console.log("No duty found, staying put for a moment...");
-          // router.replace("/worker/dashboard"); // Isko filhaal comment kar dijiye testing ke liye
+          router.replace("/worker/dashboard"); // Isko filhaal comment kar dijiye testing ke liye
         }
       }
     } catch (error) {
@@ -80,8 +80,59 @@ export default function DutyInProgress() {
       { text: "Cancel", style: "cancel" },
       {
         text: "Yes, Complete Duty",
-        onPress: () => router.replace("/worker/dashboard"),
-      }, // Ise baad me API se jodenge
+        onPress: async () => {
+          try {
+            if (!dutyData?.id) {
+              Alert.alert("Error", "Booking ID missing hai.");
+              return;
+            }
+
+            const session = await AsyncStorage.getItem("workerSession");
+
+            if (!session) {
+              Alert.alert("Error", "Worker session missing hai.");
+              return;
+            }
+
+            const parsedWorker = JSON.parse(session);
+
+            const response = await axios.post(
+              `${API_URL}/user/worker/complete-duty`,
+              {
+                bookingId: dutyData.id,
+                workerId: parsedWorker.id,
+              },
+            );
+
+            if (response.data.success) {
+              Alert.alert("Duty Completed", "Please rate the client.", [
+                {
+                  text: "Rate Client",
+                  onPress: () =>
+                    router.replace({
+                      pathname: "/worker/rate-client",
+                      params: {
+                        bookingId: String(dutyData.id),
+                      },
+                    }),
+                },
+              ]);
+            } else {
+              Alert.alert(
+                "Failed",
+                response.data.message || "Duty complete nahi ho payi.",
+              );
+            }
+          } catch (error: any) {
+            console.log("Complete duty error:", error?.response?.data || error);
+            Alert.alert(
+              "Error",
+              error?.response?.data?.message ||
+                "Server error while completing duty.",
+            );
+          }
+        },
+      },
     ]);
   };
 
