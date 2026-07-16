@@ -38,8 +38,6 @@ export default function WorkerAvailable() {
   const [poolInfo, setPoolInfo] = useState<any>(null);
 
   const autoOfflineDoneRef = useRef(false);
-  const dutyCheckInProgressRef = useRef(false);
-  const dutyOpenedRef = useRef(false);
 
   useEffect(() => {
     loadInitialData();
@@ -61,25 +59,7 @@ export default function WorkerAvailable() {
       });
     }, 1000);
 
-    // Push notification miss/delay ho tab bhi worker ki assigned duty detect hogi.
-    const dutyPoller = setInterval(async () => {
-      try {
-        if (dutyOpenedRef.current) return;
-
-        const session = await AsyncStorage.getItem("workerSession");
-        if (!session) return;
-
-        const parsedSession = JSON.parse(session);
-        await checkForAssignedDuty(Number(parsedSession.id), false);
-      } catch (error) {
-        console.log("Automatic duty poll error:", error);
-      }
-    }, 3000);
-
-    return () => {
-      clearInterval(timer);
-      clearInterval(dutyPoller);
-    };
+    return () => clearInterval(timer);
   }, []);
 
   const loadInitialData = async () => {
@@ -93,17 +73,6 @@ export default function WorkerAvailable() {
 
       const parsedSession = JSON.parse(session);
       setWorkerSession(parsedSession);
-
-      // Pehle active duty check karo. Booking ke baad worker isAvailable=false ho
-      // sakta hai, isliye pool-status se pehle duty check zaroori hai.
-      const dutyFound = await checkForAssignedDuty(
-        Number(parsedSession.id),
-        false,
-      );
-
-      if (dutyFound) {
-        return;
-      }
 
       await loadPoolStatus(parsedSession.id);
     } catch (error) {
@@ -159,65 +128,25 @@ export default function WorkerAvailable() {
     });
   };
 
-  const checkForAssignedDuty = async (
-    workerId: number,
-    showWaitingMessage = false,
-  ): Promise<boolean> => {
-    if (dutyOpenedRef.current || dutyCheckInProgressRef.current) {
-      return dutyOpenedRef.current;
-    }
-
-    try {
-      dutyCheckInProgressRef.current = true;
-
-      const response = await axios.get(
-        `${API_URL}/user/worker/current-duty/${workerId}`,
-      );
-
-      if (response.data.success && response.data.duty) {
-        dutyOpenedRef.current = true;
-
-        if (showWaitingMessage) {
-          Alert.alert("Duty Found", "Aapko ek active duty assign hui hai.");
-        }
-
-        router.replace("/worker/active-duty");
-        return true;
-      }
-
-      if (showWaitingMessage) {
-        Alert.alert("Still Waiting", "Abhi koi booking assign nahi hui hai.");
-      }
-
-      return false;
-    } catch (error: any) {
-      console.log(
-        "Duty check error:",
-        error?.response?.data || error?.message || error,
-      );
-
-      if (showWaitingMessage) {
-        Alert.alert("Error", "Duty check nahi ho paya.");
-      }
-
-      return false;
-    } finally {
-      dutyCheckInProgressRef.current = false;
-    }
-  };
-
   const handleRefreshDuty = async () => {
     try {
       const session = await AsyncStorage.getItem("workerSession");
       if (!session) return;
 
       const parsedData = JSON.parse(session);
-      const workerId = Number(parsedData.id);
+      const workerId = parsedData.id;
 
-      const dutyFound = await checkForAssignedDuty(workerId, true);
+      await loadPoolStatus(workerId);
 
-      if (!dutyFound) {
-        await loadPoolStatus(workerId);
+      const response = await axios.get(
+        `${API_URL}/worker/current-duty/${workerId}`,
+      );
+
+      if (response.data.success && response.data.duty) {
+        Alert.alert("Duty Found", "Aapko ek active duty assign hui hai.");
+        router.replace("/worker/active-duty");
+      } else {
+        Alert.alert("Still Waiting", "Abhi koi booking assign nahi hui hai.");
       }
     } catch (error) {
       console.log("Refresh duty error:", error);

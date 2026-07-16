@@ -1,24 +1,17 @@
 // app/user/rating.tsx
-import { CommonActions } from "@react-navigation/native";
 import axios from "axios";
-import {
-  router,
-  Stack,
-  useLocalSearchParams,
-  useNavigation,
-} from "expo-router";
-
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, Star, User } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
@@ -55,7 +48,6 @@ const StarRating = ({
 };
 
 export default function RateWorkers() {
-  const navigation = useNavigation();
   const { bookingId, edit } = useLocalSearchParams();
   const [booking, setBooking] = useState<any>(null);
   const [ratings, setRatings] = useState<any>({});
@@ -156,26 +148,8 @@ export default function RateWorkers() {
       });
 
       if (response.data.success) {
-        Alert.alert("Success!", "Rating save ho gayi hai. Shukriya! 🙏", [
-          {
-            text: "OK",
-            onPress: () => {
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 1,
-                  routes: [
-                    {
-                      name: "user/dashboard",
-                    },
-                    {
-                      name: "user/history",
-                    },
-                  ],
-                }),
-              );
-            },
-          },
-        ]);
+        Alert.alert("Success!", "Rating save ho gayi hai. Shukriya! 🙏");
+        router.replace("/user/history"); // History page par wapas bhej do
       }
     } catch (error) {
       console.log("Rating submit error", error);

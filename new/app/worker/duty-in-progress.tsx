@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack } from "expo-router";
 import { CheckCircle, Clock, MapPin } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,136 +20,50 @@ export default function DutyInProgress() {
   const [isLoading, setIsLoading] = useState(true);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
 
-  const bookingIdRef = useRef<number | null>(null);
-  const isRedirectingRef = useRef(false);
-  const isRequestRunningRef = useRef(false);
-
   useEffect(() => {
-    fetchCurrentDuty(false);
-
-    // Customer completion ko detect karne ke liye har 3 second status check.
-    const statusInterval = setInterval(() => {
-      fetchCurrentDuty(true);
-    }, 3000);
-
-    return () => clearInterval(statusInterval);
+    fetchCurrentDuty();
   }, []);
 
-  const openClientRating = (bookingId: number) => {
-    if (isRedirectingRef.current) {
-      return;
-    }
-
-    isRedirectingRef.current = true;
-
-    router.replace({
-      pathname: "/worker/rate-client",
-      params: {
-        bookingId: String(bookingId),
-      },
-    });
-  };
-
-  const checkCompletedBooking = async (bookingId: number) => {
-    try {
-      const response = await axios.get(`${API_URL}/user/booking/${bookingId}`);
-
-      if (!response.data.success) {
-        return;
-      }
-
-      const latestBooking = response.data.booking;
-
-      if (latestBooking?.status === "COMPLETED") {
-        openClientRating(bookingId);
-      }
-    } catch (error: any) {
-      console.log(
-        "Completed booking status check error:",
-        error?.response?.data || error,
-      );
-    }
-  };
-
-  const fetchCurrentDuty = async (silent = false) => {
-    if (isRequestRunningRef.current || isRedirectingRef.current) {
-      return;
-    }
-
-    isRequestRunningRef.current = true;
-
+  const fetchCurrentDuty = async () => {
     try {
       const session = await AsyncStorage.getItem("workerSession");
+      if (session) {
+        const parsedWorker = JSON.parse(session);
+        const response = await axios.get(
+          `${API_URL}/user/worker/current-duty/${parsedWorker.id}`,
+        );
 
-      if (!session) {
-        if (!silent) {
-          Alert.alert("Error", "Worker session missing hai.");
-          router.replace("/worker/login");
+        // Check kijiye ki status IN_PROGRESS hai ya nahi
+        if (response.data.success) {
+          setDutyData(response.data.duty);
+        } else {
+          // Agar 404 ya koi data nahi mila, tabhi dashboard bhejien
+          console.log("No duty found, staying put for a moment...");
+          router.replace("/worker/dashboard"); // Isko filhaal comment kar dijiye testing ke liye
         }
-        return;
       }
-
-      const parsedWorker = JSON.parse(session);
-
-      const response = await axios.get(
-        `${API_URL}/user/worker/current-duty/${parsedWorker.id}`,
-      );
-
-      if (response.data.success && response.data.duty) {
-        const currentDuty = response.data.duty;
-
-        bookingIdRef.current = Number(currentDuty.id);
-        setDutyData(currentDuty);
-        return;
-      }
-
-      /*
-       * Customer ne booking COMPLETED kar di to current-duty API us booking ko
-       * return nahi karegi, kyunki wo sirf ASSIGNED / IN_PROGRESS leti hai.
-       * Isliye last known booking ko separately check karte hain.
-       */
-      if (bookingIdRef.current) {
-        await checkCompletedBooking(bookingIdRef.current);
-        return;
-      }
-
-      if (!silent) {
-        router.replace("/worker/dashboard");
-      }
-    } catch (error: any) {
-      console.log("Error fetching duty:", error?.response?.data || error);
+    } catch (error) {
+      console.log("Error fetching duty", error);
     } finally {
-      isRequestRunningRef.current = false;
-
-      if (!silent) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   };
 
   // Timer Logic
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-
-    if (dutyData?.updatedAt) {
+    let interval: any;
+    if (dutyData && dutyData.updatedAt) {
       const startTime = new Date(dutyData.updatedAt).getTime();
 
-      const updateTimer = () => {
-        const now = Date.now();
-        setSecondsElapsed(Math.max(0, Math.floor((now - startTime) / 1000)));
-      };
-
-      updateTimer();
-      interval = setInterval(updateTimer, 1000);
+      interval = setInterval(() => {
+        const now = new Date().getTime();
+        setSecondsElapsed(Math.floor((now - startTime) / 1000));
+      }, 1000);
     }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
+    return () => clearInterval(interval);
   }, [dutyData]);
 
+  // Format Time to HH:MM:SS
   const formatTime = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600)
       .toString()
@@ -158,7 +72,6 @@ export default function DutyInProgress() {
       .toString()
       .padStart(2, "0");
     const s = (totalSeconds % 60).toString().padStart(2, "0");
-
     return `${h}:${m}:${s}`;
   };
 
@@ -192,7 +105,18 @@ export default function DutyInProgress() {
             );
 
             if (response.data.success) {
-              openClientRating(Number(dutyData.id));
+              Alert.alert("Duty Completed", "Please rate the client.", [
+                {
+                  text: "Rate Client",
+                  onPress: () =>
+                    router.replace({
+                      pathname: "/worker/rate-client",
+                      params: {
+                        bookingId: String(dutyData.id),
+                      },
+                    }),
+                },
+              ]);
             } else {
               Alert.alert(
                 "Failed",
@@ -212,13 +136,9 @@ export default function DutyInProgress() {
     ]);
   };
 
-  if (isLoading) {
+  if (isLoading)
     return <ActivityIndicator size="large" color="#000" style={{ flex: 1 }} />;
-  }
-
-  if (!dutyData) {
-    return null;
-  }
+  if (!dutyData) return null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -235,7 +155,6 @@ export default function DutyInProgress() {
         <Text style={styles.customerName}>
           {dutyData.customer?.name || "Customer"}
         </Text>
-
         <View style={styles.row}>
           <MapPin color="#6B7280" size={16} />
           <Text style={styles.addressText}>
@@ -243,6 +162,7 @@ export default function DutyInProgress() {
           </Text>
         </View>
 
+        {/* TIMER CARD */}
         <View style={styles.timerCard}>
           <Clock color="#10B981" size={40} style={{ marginBottom: 10 }} />
           <Text style={styles.timerLabel}>Time Elapsed</Text>
@@ -251,6 +171,7 @@ export default function DutyInProgress() {
 
         <View style={{ flex: 1 }} />
 
+        {/* COMPLETE DUTY BUTTON */}
         <TouchableOpacity
           style={styles.completeBtn}
           onPress={handleCompleteDuty}

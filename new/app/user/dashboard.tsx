@@ -148,7 +148,7 @@ export default function CustomerDashboard() {
               </Text>
               <TouchableOpacity
                 style={styles.getStartedBtn}
-                onPress={() => router.push("/user/book-worker-step1")}
+                onPress={() => router.push("/user/create-booking")}
               >
                 <Text style={styles.getStartedText}>Get Started</Text>
                 <ArrowRight color="#fff" size={16} style={{ marginLeft: 5 }} />
@@ -258,7 +258,7 @@ export default function CustomerDashboard() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => router.push("/user/book-worker-step1")}
+          onPress={() => router.push("/user/create-booking")}
         >
           <PlusSquare color="#9CA3AF" size={24} />
           <Text style={styles.navText}>Book</Text>
