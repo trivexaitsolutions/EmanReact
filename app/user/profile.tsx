@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, Stack } from "expo-router";
+import { CommonActions } from "@react-navigation/native";
+import { Stack, useNavigation } from "expo-router";
 import {
     ChevronRight,
     HelpCircle,
@@ -21,6 +22,7 @@ import {
 } from "react-native";
 
 export default function UserProfile() {
+  const navigation = useNavigation();
   const [customer, setCustomer] = useState<any>(null);
 
   useEffect(() => {
@@ -46,8 +48,37 @@ export default function UserProfile() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.removeItem("customerSession");
-          router.replace("/user/login");
+          try {
+            /*
+             * Logout ke baad app ko fresh role-selection state me laana hai.
+             * Dono role sessions clear kar rahe hain, warna root screen kisi
+             * purane worker session ko dekhkar automatic redirect kar sakti hai.
+             */
+            await AsyncStorage.multiRemove([
+              "customerSession",
+              "workerSession",
+              "activeRole",
+              "newBookingDraft",
+            ]);
+
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [
+                  {
+                    name: "index",
+                  },
+                ],
+              }),
+            );
+          } catch (error) {
+            console.log("Customer logout error:", error);
+
+            Alert.alert(
+              "Logout Failed",
+              "Logout karne mein problem hui. Dobara try karein.",
+            );
+          }
         },
       },
     ]);

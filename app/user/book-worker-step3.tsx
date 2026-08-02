@@ -27,6 +27,13 @@ type BookingDraft = {
   selectedNakas?: any[];
   nakaIds?: number[];
   addressId?: number;
+  assignmentMode?: "AUTO" | "CUSTOMER_SELECT";
+  selectedWorkerIds?: number[];
+  selectedWorkers?: Array<{
+    id: number;
+    name?: string;
+    averageRating?: number;
+  }>;
 };
 
 export default function BookWorkerStep3() {
@@ -257,6 +264,30 @@ export default function BookWorkerStep3() {
       return;
     }
 
+    if (draft.assignmentMode === "CUSTOMER_SELECT") {
+      const selectedWorkerIds = Array.isArray(draft.selectedWorkerIds)
+        ? draft.selectedWorkerIds
+            .map((id) => Number(id))
+            .filter((id) => Number.isInteger(id) && id > 0)
+        : [];
+
+      if (selectedWorkerIds.length !== Number(draft.workerCount || 1)) {
+        Alert.alert(
+          "Select Workers",
+          "Please select the required number of workers before payment.",
+          [
+            {
+              text: "Select Workers",
+              onPress: () =>
+                router.push("/user/book-worker-select-workers"),
+            },
+          ],
+        );
+
+        return;
+      }
+    }
+
     let createdBookingId: number | null = null;
 
     let paymentCompleted = false;
@@ -284,6 +315,11 @@ export default function BookWorkerStep3() {
           minRating: Number(draft.minRating || 0),
 
           addressId: Number(selectedAddress.id),
+
+          selectedWorkerIds:
+            draft.assignmentMode === "CUSTOMER_SELECT"
+              ? (draft.selectedWorkerIds || []).map((id) => Number(id))
+              : [],
         },
       );
 
@@ -402,6 +438,28 @@ export default function BookWorkerStep3() {
         return;
       }
 
+      const errorCode = error?.response?.data?.code;
+
+      if (
+        errorCode === "WORKERS_NO_LONGER_AVAILABLE" ||
+        errorCode === "SELECTED_WORKERS_INVALID"
+      ) {
+        Alert.alert(
+          "Worker No Longer Available",
+          error?.response?.data?.message ||
+            "Selected worker ab available nahi hai. Please worker dobara select karein.",
+          [
+            {
+              text: "Select Worker",
+              onPress: () =>
+                router.replace("/user/book-worker-select-workers"),
+            },
+          ],
+        );
+
+        return;
+      }
+
       const errorMessage =
         error?.response?.data?.message ||
         error?.description ||
@@ -426,6 +484,13 @@ export default function BookWorkerStep3() {
   const selectedNakaNames = Array.isArray(draft.selectedNakas)
     ? draft.selectedNakas
         .map((naka: any) => naka.name)
+        .filter(Boolean)
+        .join(", ")
+    : "";
+
+  const selectedWorkerNames = Array.isArray(draft.selectedWorkers)
+    ? draft.selectedWorkers
+        .map((worker: any) => worker.name)
         .filter(Boolean)
         .join(", ")
     : "";
@@ -619,6 +684,23 @@ export default function BookWorkerStep3() {
 
               <Text style={styles.overviewValue}>{workerCount}</Text>
             </View>
+
+            {draft.assignmentMode === "CUSTOMER_SELECT" ? (
+              <>
+                <View style={styles.rowDivider} />
+
+                <View style={styles.overviewRow}>
+                  <Text style={styles.overviewLabel}>Selected Workers</Text>
+
+                  <Text
+                    style={[styles.overviewValue, styles.nakaValue]}
+                    numberOfLines={2}
+                  >
+                    {selectedWorkerNames || "-"}
+                  </Text>
+                </View>
+              </>
+            ) : null}
 
             <View style={styles.rowDivider} />
 

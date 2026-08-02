@@ -1,7 +1,13 @@
 // app/worker/rate-client.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import {
+  router,
+  Stack,
+  useLocalSearchParams,
+  useNavigation,
+} from "expo-router";
+import { CommonActions } from "@react-navigation/native";
 import {
     CheckCircle2,
     ChevronLeft,
@@ -26,6 +32,7 @@ import {
 import { API_URL } from "../../constants/api";
 
 export default function RateClientScreen() {
+  const navigation = useNavigation();
   const { bookingId } = useLocalSearchParams();
 
   const [workerSession, setWorkerSession] = useState<any>(null);
@@ -112,11 +119,21 @@ export default function RateClientScreen() {
         Alert.alert("Thank You", "Client rating submit ho gayi.", [
           {
             text: "OK",
-            onPress: () =>
-              router.replace({
-                pathname: "/worker/booking-details",
-                params: { id: String(bookingId) },
-              }),
+            onPress: () => {
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 1,
+                  routes: [
+                    {
+                      name: "worker/dashboard",
+                    },
+                    {
+                      name: "worker/history",
+                    },
+                  ],
+                }),
+              );
+            },
           },
         ]);
       }
@@ -305,7 +322,18 @@ export default function RateClientScreen() {
 
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => router.replace("/worker/dashboard")}
+          onPress={() => {
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [
+                  {
+                    name: "worker/dashboard",
+                  },
+                ],
+              }),
+            );
+          }}
           style={styles.skipBtn}
         >
           <Text style={styles.skipBtnText}>Skip for now</Text>

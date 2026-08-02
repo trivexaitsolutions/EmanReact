@@ -37,6 +37,26 @@ export default function CustomerDashboard() {
     fetchDashboardData();
   }, []);
 
+  const startNewBooking = async () => {
+    try {
+      /*
+       * Dashboard se Book New Workers start karna
+       * hamesha ek fresh booking maana jayega.
+       *
+       * Step 2/Step 3 se Back aane par draft preserve
+       * rahega, kyunki clear sirf dashboard button se hoga.
+       */
+      await AsyncStorage.removeItem("newBookingDraft");
+
+      router.push("/user/book-worker-step1");
+    } catch (error) {
+      console.log("New booking draft reset error:", error);
+
+      // Storage clear fail hone par bhi booking page open rakho.
+      router.push("/user/book-worker-step1");
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       const session = await AsyncStorage.getItem("customerSession");
@@ -148,7 +168,7 @@ export default function CustomerDashboard() {
               </Text>
               <TouchableOpacity
                 style={styles.getStartedBtn}
-                onPress={() => router.push("/user/book-worker-step1")}
+                onPress={startNewBooking}
               >
                 <Text style={styles.getStartedText}>Get Started</Text>
                 <ArrowRight color="#fff" size={16} style={{ marginLeft: 5 }} />
@@ -258,7 +278,7 @@ export default function CustomerDashboard() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => router.push("/user/book-worker-step1")}
+          onPress={startNewBooking}
         >
           <PlusSquare color="#9CA3AF" size={24} />
           <Text style={styles.navText}>Book</Text>

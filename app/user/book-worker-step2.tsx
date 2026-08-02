@@ -39,6 +39,7 @@ export default function BookWorkerStep2() {
   const [selectedNakas, setSelectedNakas] = useState<NakaOption[]>([]);
 
   const [isSearching, setIsSearching] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -154,6 +155,10 @@ export default function BookWorkerStep2() {
   };
 
   const handleNext = async () => {
+    if (isContinuing) {
+      return;
+    }
+
     if (selectedNakas.length === 0) {
       Alert.alert("Select Naka", "Please select at least one nearby naka.");
 
@@ -161,16 +166,44 @@ export default function BookWorkerStep2() {
     }
 
     try {
+      setIsContinuing(true);
+
       const oldDraft = await AsyncStorage.getItem("newBookingDraft");
 
       const existingDraft = oldDraft ? JSON.parse(oldDraft) : {};
 
+      /*
+       * Admin kabhi bhi mode change kar sakta hai,
+       * isliye Next par latest setting backend se read karte hain.
+       */
+      const optionResponse = await axios.get(
+        `${API_URL}/user/booking-options`,
+      );
+
+      const assignmentMode =
+        optionResponse.data?.success &&
+        optionResponse.data?.assignmentMode === "CUSTOMER_SELECT"
+          ? "CUSTOMER_SELECT"
+          : "AUTO";
+
       const updatedDraft = {
         ...existingDraft,
-
         selectedNakas,
-
         nakaIds: selectedNakas.map((naka) => Number(naka.id)),
+        assignmentMode,
+        settingUpdatedAt: optionResponse.data?.settingUpdatedAt || null,
+
+        /*
+         * AUTO mode me purani manual selection draft me nahi rehni chahiye.
+         */
+        selectedWorkerIds:
+          assignmentMode === "CUSTOMER_SELECT"
+            ? existingDraft.selectedWorkerIds || []
+            : [],
+        selectedWorkers:
+          assignmentMode === "CUSTOMER_SELECT"
+            ? existingDraft.selectedWorkers || []
+            : [],
       };
 
       await AsyncStorage.setItem(
@@ -178,11 +211,24 @@ export default function BookWorkerStep2() {
         JSON.stringify(updatedDraft),
       );
 
-      router.push("/user/book-worker-step3");
-    } catch (error) {
-      console.log("Step 2 draft save error:", error);
+      if (assignmentMode === "CUSTOMER_SELECT") {
+        router.push("/user/book-worker-select-workers");
+        return;
+      }
 
-      Alert.alert("Error", "Selected nakas save nahi ho paye.");
+      router.push("/user/book-worker-step3");
+    } catch (error: any) {
+      console.log(
+        "Step 2 continue error:",
+        error?.response?.data || error,
+      );
+
+      Alert.alert(
+        "Error",
+        "Booking mode ya selected nakas load nahi ho paye. Please try again.",
+      );
+    } finally {
+      setIsContinuing(false);
     }
   };
 
@@ -410,13 +456,19 @@ export default function BookWorkerStep2() {
           <View style={styles.footer}>
             <TouchableOpacity
               activeOpacity={0.85}
+              disabled={selectedNakas.length === 0 || isContinuing}
               style={[
                 styles.nextButton,
-                selectedNakas.length === 0 && styles.nextButtonDisabled,
+                (selectedNakas.length === 0 || isContinuing) &&
+                  styles.nextButtonDisabled,
               ]}
               onPress={handleNext}
             >
-              <Text style={styles.nextButtonText}>Next</Text>
+              {isContinuing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.nextButtonText}>Next</Text>
+              )}
             </TouchableOpacity>
           </View>
         )}

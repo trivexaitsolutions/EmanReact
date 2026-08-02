@@ -7,9 +7,9 @@ import {
   useLocalSearchParams,
   useNavigation,
 } from "expo-router";
-
 import { ChevronLeft, Star, User } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
+
 import {
   ActivityIndicator,
   Alert,
@@ -92,7 +92,7 @@ export default function RateWorkers() {
         setRatings(initialRatings);
       }
     } catch (error) {
-      console.log("Error fetching booking for rating", error);
+      console.log("Errors fetching booking for rating", error);
     } finally {
       setIsLoading(false);
     }
