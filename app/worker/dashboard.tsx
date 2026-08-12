@@ -21,7 +21,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
@@ -30,10 +29,6 @@ import { registerForPushNotificationsAsync } from "../../utils/pushToken";
 const SLOT_OPTIONS = [2, 3, 4];
 
 export default function WorkerDashboard() {
-  const { height } = useWindowDimensions();
-  // Keep one compact composition on phones. Only tablet-sized windows get the
-  // more spacious variant, so a phone's pixel density cannot change the UI.
-  const isCompact = height < 1200;
   const [workerData, setWorkerData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isHolding, setIsHolding] = useState(false);
@@ -211,7 +206,7 @@ export default function WorkerDashboard() {
   if (isLoading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#009A56" />
+        <ActivityIndicator size="large" color="#087C49" />
         <Text style={styles.loaderText}>Loading your dashboard...</Text>
       </View>
     );
@@ -219,171 +214,149 @@ export default function WorkerDashboard() {
 
   const firstName = workerData?.name?.split(" ")[0] || "Worker";
   const weeklyEarning = Number(workerData?.weeklyEarning || 0);
-  const dateLabel = new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
+
+  const dateObj = new Date();
+  const dateLabel = `${dateObj.toLocaleDateString("en-US", { weekday: "long" })}, ${dateObj.getDate()} ${dateObj.toLocaleDateString("en-US", { month: "long" })}`;
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={[styles.content, isCompact && styles.contentCompact]}>
-        <View style={[styles.headerRow, isCompact && styles.headerRowCompact]}>
-          <Text style={styles.brand}>E-MAN</Text>
+      <View style={styles.content}>
+        {/* Header Section */}
+        <View style={styles.headerRow}>
+          <View style={styles.headerTextGroup}>
+            <Text style={styles.greeting}>
+              Good Morning, <Text style={styles.greetingName}>{firstName}</Text>{" "}
+              👋
+            </Text>
+            <Text style={styles.dateText}>{dateLabel}</Text>
+          </View>
           <TouchableOpacity
             accessibilityLabel="Log out"
             onPress={handleLogout}
             style={styles.logoutButton}
           >
-            <LogOut color="#5B6472" size={20} strokeWidth={2.2} />
+            <LogOut color="#6B7280" size={22} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
-        <View>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.72}
-            numberOfLines={1}
-            style={[styles.greeting, isCompact && styles.greetingCompact]}
-          >
-            Good Morning, <Text style={styles.greetingName}>{firstName}</Text>
-            <Text> 👋</Text>
-          </Text>
-          <Text style={[styles.dateText, isCompact && styles.dateTextCompact]}>
-            {dateLabel}
-          </Text>
-        </View>
-
-        <View style={[styles.statusStrip, isCompact && styles.statusStripCompact]}>
+        {/* Status Strip */}
+        <View style={styles.statusStrip}>
           <View style={styles.statusDot} />
-          <Text style={styles.statusLabel}>Status:</Text>
-          <Text style={styles.statusValue}>Not in pool</Text>
+          <Text style={styles.statusLabel}>
+            Status: <Text style={styles.statusValue}>Not in pool</Text>
+          </Text>
         </View>
 
+        {/* Full Day Hold Card */}
         <TouchableOpacity
           activeOpacity={0.92}
           delayLongPress={0}
           onPressIn={startFullDayHold}
           onPressOut={cancelFullDayHold}
-          style={[styles.fullDayCard, isCompact && styles.fullDayCardCompact]}
+          style={styles.fullDayCard}
         >
-          <View style={styles.fullDayGlowLarge} />
-          <View style={styles.fullDayGlowSmall} />
-
-          <View style={[styles.fullDayTextSide, isCompact && styles.fullDayTextSideCompact]}>
-            <Text style={[styles.fullDayPrompt, isCompact && styles.fullDayPromptCompact]}>
-              {isHolding ? "Keep holding..." : "Hold 3 sec to go Available"}
-            </Text>
-            <Text style={[styles.fullDayTitle, isCompact && styles.fullDayTitleCompact]}>
-              Full Day Pool
-            </Text>
-            <Text
-              style={[
-                styles.fullDaySubtitle,
-                isCompact && styles.fullDaySubtitleCompact,
-              ]}
-            >
-              Be visible for full-day work
+          <View style={styles.fullDayTextSide}>
+            <Text style={styles.fullDayPrompt}>Hold 3 sec to go Available</Text>
+            <Text style={styles.fullDayTitle}>Full Day Pool</Text>
+            <Text style={styles.fullDaySubtitle}>
+              Be visible for full day work
             </Text>
           </View>
 
-          <View
-            style={[
-              styles.holdCircle,
-              isCompact && styles.holdCircleCompact,
-              isHolding && styles.holdCircleActive,
-            ]}
-          >
-            <View style={styles.holdCircleInner}>
-              <MousePointerClick
-                color="#FFFFFF"
-                size={isCompact ? 33 : 47}
-                strokeWidth={2.1}
-              />
-              <Text
-                style={[styles.holdCircleText, isCompact && styles.holdCircleTextCompact]}
-              >
-                {isHolding ? `${holdProgress}%` : "Hold to"}
-              </Text>
-              <Text
-                style={[styles.holdCircleText, isCompact && styles.holdCircleTextCompact]}
-              >
-                {isHolding ? "Activating" : "Activate"}
+          <View style={styles.holdCircleContainer}>
+            <View
+              style={[
+                styles.holdCircleBorder,
+                isHolding && {
+                  borderColor: `rgba(255, 255, 255, ${0.3 + (holdProgress / 100) * 0.7})`,
+                },
+              ]}
+            >
+              <View style={styles.holdCircleIndicator} />
+              <MousePointerClick color="#FFFFFF" size={32} strokeWidth={2} />
+              <Text style={styles.holdCircleText}>
+                {isHolding ? `${holdProgress}%` : "Hold to\nActivate"}
               </Text>
             </View>
           </View>
         </TouchableOpacity>
 
+        {/* Some Hours Card */}
         <TouchableOpacity
           activeOpacity={0.88}
           onPress={() => setIsSlotModalOpen(true)}
-          style={[styles.someHoursCard, isCompact && styles.someHoursCardCompact]}
+          style={styles.rowCard}
         >
-          <View style={[styles.lightIconCircle, isCompact && styles.lightIconCircleCompact]}>
-            <Clock3 color="#009A56" size={isCompact ? 28 : 39} strokeWidth={2.15} />
+          <View style={styles.lightIconContainer}>
+            <Clock3 color="#087C49" size={26} strokeWidth={2.2} />
           </View>
-          <View style={styles.someHoursCopy}>
-            <Text style={[styles.someHoursTitle, isCompact && styles.someHoursTitleCompact]}>
-              Some Hours Work
-            </Text>
-            <Text style={[styles.someHoursSubtitle, isCompact && styles.someHoursSubtitleCompact]}>
-              Quick slots
-            </Text>
+          <View style={styles.rowCardCopy}>
+            <Text style={styles.rowCardTitle}>Some Hours Work</Text>
+            <Text style={styles.rowCardSubtitle}>Quick slots</Text>
           </View>
-          <ChevronRight color="#009A56" size={isCompact ? 25 : 32} strokeWidth={2.2} />
+          <ChevronRight color="#087C49" size={24} strokeWidth={2} />
         </TouchableOpacity>
 
-        <View style={[styles.quickActionRow, isCompact && styles.quickActionRowCompact]}>
+        {/* Quick Actions Grid */}
+        <View style={styles.gridRow}>
           <QuickAction
-            compact={isCompact}
-            icon={<Wallet color="#009A56" size={38} strokeWidth={2.1} />}
+            icon={<Wallet color="#087C49" size={24} strokeWidth={2.2} />}
             title="Earnings"
-            subtitle={`₹${weeklyEarning.toLocaleString("en-IN")}`}
+            subtitle={
+              weeklyEarning > 0
+                ? `₹${weeklyEarning.toLocaleString("en-IN")}`
+                : "View details"
+            }
             onPress={() => router.push("/worker/history")}
           />
           <QuickAction
-            compact={isCompact}
-            icon={<Wallet color="#009A56" size={38} strokeWidth={2.1} />}
+            icon={<Wallet color="#087C49" size={24} strokeWidth={2.2} />}
             title="Wallet"
             subtitle="View balance"
           />
         </View>
 
+        {/* Today Card */}
         <TouchableOpacity
           activeOpacity={0.88}
-          style={[styles.todayCard, isCompact && styles.todayCardCompact]}
+          style={styles.rowCardBordered}
           onPress={() => router.push("/worker/history")}
         >
-          <View style={[styles.lightIconCircle, isCompact && styles.lightIconCircleCompact]}>
-            <CalendarX color="#009A56" size={isCompact ? 27 : 35} strokeWidth={2.1} />
+          <View style={styles.outlineIconContainer}>
+            <CalendarX color="#087C49" size={24} strokeWidth={2.2} />
           </View>
-          <View>
-            <Text style={[styles.todayTitle, isCompact && styles.todayTitleCompact]}>
-              Today
-            </Text>
-            <Text style={[styles.todaySubtitle, isCompact && styles.todaySubtitleCompact]}>
-              No duty assigned
-            </Text>
+          <View style={styles.rowCardCopy}>
+            <Text style={styles.rowCardTitle}>Today</Text>
+            <Text style={styles.rowCardSubtitle}>No duty assigned</Text>
           </View>
         </TouchableOpacity>
       </View>
 
+      {/* Bottom Navigation */}
       <View style={styles.bottomNavigation}>
-        <BottomNavItem active icon={<House color="#009A56" size={27} />} label="Home" />
         <BottomNavItem
-          icon={<BriefcaseBusiness color="#5B6472" size={27} />}
+          active
+          icon={<House color={true ? "#087C49" : "#6B7280"} size={26} />}
+          label="Home"
+        />
+        <BottomNavItem
+          icon={<BriefcaseBusiness color="#6B7280" size={26} />}
           label="Jobs"
           onPress={() => router.push("/worker/history")}
         />
-        <BottomNavItem icon={<Wallet color="#5B6472" size={27} />} label="Wallet" />
         <BottomNavItem
-          icon={<CircleUserRound color="#5B6472" size={27} />}
+          icon={<Wallet color="#6B7280" size={26} />}
+          label="Wallet"
+        />
+        <BottomNavItem
+          icon={<CircleUserRound color="#6B7280" size={26} />}
           label="Profile"
         />
       </View>
 
+      {/* Slot Modal */}
       <Modal
         visible={isSlotModalOpen}
         transparent
@@ -414,7 +387,7 @@ export default function WorkerDashboard() {
                     Join the quick-work pool
                   </Text>
                 </View>
-                <ChevronRight color="#009A56" size={25} />
+                <ChevronRight color="#087C49" size={24} />
               </TouchableOpacity>
             ))}
 
@@ -432,13 +405,11 @@ export default function WorkerDashboard() {
 }
 
 function QuickAction({
-  compact = false,
   icon,
   title,
   subtitle,
   onPress,
 }: {
-  compact?: boolean;
   icon: React.ReactNode;
   title: string;
   subtitle: string;
@@ -448,22 +419,15 @@ function QuickAction({
     <TouchableOpacity
       activeOpacity={onPress ? 0.85 : 1}
       onPress={onPress}
-      style={[styles.quickActionCard, compact && styles.quickActionCardCompact]}
+      style={styles.gridCard}
     >
-      <View style={[styles.quickActionIcon, compact && styles.quickActionIconCompact]}>
-        {icon}
-      </View>
-      <Text style={[styles.quickActionTitle, compact && styles.quickActionTitleCompact]}>
-        {title}
-      </Text>
-      <View style={[styles.quickActionFooter, compact && styles.quickActionFooterCompact]}>
-        <Text
-          numberOfLines={1}
-          style={[styles.quickActionSubtitle, compact && styles.quickActionSubtitleCompact]}
-        >
+      <View style={styles.gridIconContainer}>{icon}</View>
+      <Text style={styles.gridTitle}>{title}</Text>
+      <View style={styles.gridFooter}>
+        <Text numberOfLines={1} style={styles.gridSubtitle}>
           {subtitle}
         </Text>
-        <ChevronRight color="#009A56" size={compact ? 17 : 22} strokeWidth={2.5} />
+        <ChevronRight color="#087C49" size={16} strokeWidth={2.5} />
       </View>
     </TouchableOpacity>
   );
@@ -487,10 +451,12 @@ function BottomNavItem({
       style={styles.bottomNavItem}
     >
       {icon}
-      <Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>
+      <Text
+        style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}
+      >
         {label}
       </Text>
-      {active ? <View style={styles.activeIndicator} /> : null}
+      {active && <View style={styles.activeIndicatorLine} />}
     </TouchableOpacity>
   );
 }
@@ -507,481 +473,329 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   loaderText: {
-    color: "#657080",
+    color: "#6B7280",
     fontSize: 14,
     fontWeight: "600",
     marginTop: 12,
   },
   content: {
     flex: 1,
-    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 10,
   },
-  contentCompact: {
-    paddingHorizontal: 16,
-    paddingTop: 9,
-    paddingBottom: 5,
-  },
+
+  // Header Styles
   headerRow: {
-    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  headerRowCompact: {
-    minHeight: 31,
-  },
-  brand: {
-    color: "#009A56",
-    fontSize: 15,
-    fontWeight: "900",
-    letterSpacing: 1.1,
-  },
-  logoutButton: {
     alignItems: "center",
-    backgroundColor: "#F4F7F5",
-    borderRadius: 20,
-    height: 40,
-    justifyContent: "center",
-    width: 40,
+    marginBottom: 20,
+  },
+  headerTextGroup: {
+    flex: 1,
   },
   greeting: {
-    color: "#111B2B",
-    fontSize: 34,
+    color: "#111827",
+    fontSize: 28,
     fontWeight: "800",
-    letterSpacing: -1.15,
-    lineHeight: 41,
-  },
-  greetingCompact: {
-    fontSize: 27,
-    letterSpacing: -0.8,
-    lineHeight: 32,
+    letterSpacing: -0.5,
   },
   greetingName: {
-    color: "#009A56",
+    color: "#087C49",
   },
   dateText: {
-    color: "#687282",
-    fontSize: 18,
+    color: "#6B7280",
+    fontSize: 15,
     fontWeight: "500",
-    marginTop: 5,
+    marginTop: 4,
   },
-  dateTextCompact: {
-    fontSize: 14,
-    marginTop: 2,
+  logoutButton: {
+    padding: 8,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 20,
   },
+
+  // Status Strip Styles
   statusStrip: {
-    alignItems: "center",
-    backgroundColor: "#F3F8F6",
-    borderRadius: 22,
     flexDirection: "row",
-    paddingHorizontal: 22,
-    paddingVertical: 21,
-  },
-  statusStripCompact: {
-    borderRadius: 16,
+    alignItems: "center",
+    backgroundColor: "#F5FAF7",
+    borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    marginBottom: 20,
   },
   statusDot: {
-    backgroundColor: "#009A56",
-    borderRadius: 8,
-    height: 12,
-    marginRight: 12,
-    width: 12,
+    backgroundColor: "#087C49",
+    borderRadius: 6,
+    height: 10,
+    width: 10,
+    marginRight: 10,
   },
   statusLabel: {
-    color: "#009A56",
-    fontSize: 16,
-    fontWeight: "800",
-    marginRight: 12,
-  },
-  statusValue: {
-    color: "#121928",
-    fontSize: 16,
+    color: "#087C49",
+    fontSize: 15,
     fontWeight: "600",
   },
+  statusValue: {
+    color: "#111827",
+    fontWeight: "600",
+  },
+
+  // Full Day Card Styles
   fullDayCard: {
-    backgroundColor: "#009A56",
-    borderRadius: 27,
+    backgroundColor: "#087C49",
+    borderRadius: 24,
     flexDirection: "row",
-    minHeight: 340,
-    overflow: "hidden",
-    padding: 26,
-  },
-  fullDayCardCompact: {
-    borderRadius: 20,
-    height: 158,
-    minHeight: 0,
-    padding: 16,
-  },
-  fullDayGlowLarge: {
-    backgroundColor: "rgba(5, 112, 66, 0.44)",
-    borderRadius: 200,
-    bottom: -175,
-    height: 390,
-    position: "absolute",
-    right: -134,
-    width: 390,
-  },
-  fullDayGlowSmall: {
-    backgroundColor: "rgba(97, 218, 152, 0.14)",
-    borderRadius: 130,
-    height: 260,
-    position: "absolute",
-    right: -56,
-    top: -105,
-    width: 260,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 16,
   },
   fullDayTextSide: {
-    alignSelf: "center",
     flex: 1,
-    paddingBottom: 12,
-    zIndex: 1,
-  },
-  fullDayTextSideCompact: {
-    flex: 1,
-    paddingBottom: 0,
+    paddingRight: 10,
   },
   fullDayPrompt: {
-    color: "#FFFFFF",
-    fontSize: 16,
+    color: "#E8F5E9",
+    fontSize: 14,
     fontWeight: "500",
-    lineHeight: 23,
-    marginBottom: 25,
-  },
-  fullDayPromptCompact: {
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   fullDayTitle: {
     color: "#FFFFFF",
-    fontSize: 35,
+    fontSize: 32,
     fontWeight: "800",
-    letterSpacing: -0.9,
-    lineHeight: 42,
-  },
-  fullDayTitleCompact: {
-    fontSize: 23,
     letterSpacing: -0.5,
-    lineHeight: 27,
+    lineHeight: 38,
   },
   fullDaySubtitle: {
-    color: "#E5FFF1",
-    fontSize: 16,
+    color: "#E8F5E9",
+    fontSize: 14,
     fontWeight: "500",
-    lineHeight: 23,
-    marginTop: 31,
-  },
-  fullDaySubtitleCompact: {
-    fontSize: 12,
-    lineHeight: 16,
     marginTop: 12,
   },
-  holdCircle: {
-    alignItems: "center",
-    alignSelf: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
-    borderColor: "rgba(217, 255, 233, 0.5)",
-    borderRadius: 105,
-    borderWidth: 13,
-    height: 188,
-    justifyContent: "center",
-    marginLeft: 6,
-    width: 188,
-    zIndex: 1,
-  },
-  holdCircleCompact: {
-    borderRadius: 70,
-    borderWidth: 7,
-    height: 120,
-    marginLeft: 6,
-    width: 120,
-  },
-  holdCircleActive: {
-    borderColor: "#FFFFFF",
-  },
-  holdCircleInner: {
+  holdCircleContainer: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  holdCircleBorder: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 4,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  holdCircleIndicator: {
+    position: "absolute",
+    top: -4,
+    width: 24,
+    height: 4,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 4,
   },
   holdCircleText: {
     color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
-  holdCircleTextCompact: {
     fontSize: 12,
-    lineHeight: 15,
-  },
-  someHoursCard: {
-    alignItems: "center",
-    backgroundColor: "#F3F9F6",
-    borderRadius: 27,
-    flexDirection: "row",
-    paddingHorizontal: 25,
-    paddingVertical: 29,
-  },
-  someHoursCardCompact: {
-    borderRadius: 18,
-    paddingHorizontal: 17,
-    paddingVertical: 13,
-  },
-  lightIconCircle: {
-    alignItems: "center",
-    backgroundColor: "#DFF4E9",
-    borderRadius: 37,
-    height: 74,
-    justifyContent: "center",
-    width: 74,
-  },
-  lightIconCircleCompact: {
-    borderRadius: 25,
-    height: 50,
-    width: 50,
-  },
-  someHoursCopy: {
-    flex: 1,
-    marginLeft: 22,
-  },
-  someHoursTitle: {
-    color: "#101928",
-    fontSize: 25,
-    fontWeight: "800",
-    letterSpacing: -0.55,
-  },
-  someHoursTitleCompact: {
-    fontSize: 19,
-    letterSpacing: -0.35,
-  },
-  someHoursSubtitle: {
-    color: "#6F7888",
-    fontSize: 17,
-    fontWeight: "500",
-    marginTop: 6,
-  },
-  someHoursSubtitleCompact: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  quickActionRow: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  quickActionRowCompact: {
-    gap: 12,
-  },
-  quickActionCard: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#EDF0EF",
-    borderRadius: 27,
-    borderWidth: 1,
-    flex: 1,
-    minHeight: 220,
-    padding: 21,
-    shadowColor: "#263448",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 13,
-    elevation: 3,
-  },
-  quickActionCardCompact: {
-    borderRadius: 18,
-    minHeight: 106,
-    padding: 13,
-  },
-  quickActionIcon: {
-    alignItems: "center",
-    backgroundColor: "#E6F7EE",
-    borderRadius: 36,
-    height: 72,
-    justifyContent: "center",
-    width: 72,
-  },
-  quickActionIconCompact: {
-    borderRadius: 25,
-    height: 50,
-    width: 50,
-  },
-  quickActionTitle: {
-    color: "#111A2A",
-    fontSize: 24,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-    marginTop: 19,
-  },
-  quickActionTitleCompact: {
-    fontSize: 18,
-    letterSpacing: -0.3,
+    fontWeight: "600",
+    textAlign: "center",
     marginTop: 8,
   },
-  quickActionFooter: {
-    alignItems: "center",
+
+  // Row Card (Some Hours & Today) Styles
+  rowCard: {
     flexDirection: "row",
-    marginTop: 7,
+    alignItems: "center",
+    backgroundColor: "#F5FAF7",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
   },
-  quickActionFooterCompact: {
-    marginTop: 2,
+  rowCardBordered: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#F3F4F6",
+    borderWidth: 1.5,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
   },
-  quickActionSubtitle: {
-    color: "#6A7485",
+  lightIconContainer: {
+    backgroundColor: "#E8F5E9",
+    borderRadius: 30,
+    height: 52,
+    width: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  outlineIconContainer: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E8F5E9",
+    borderWidth: 2,
+    borderRadius: 30,
+    height: 52,
+    width: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowCardCopy: {
     flex: 1,
+    marginLeft: 16,
+  },
+  rowCardTitle: {
+    color: "#111827",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  rowCardSubtitle: {
+    color: "#6B7280",
     fontSize: 14,
     fontWeight: "500",
+    marginTop: 4,
   },
-  quickActionSubtitleCompact: {
-    fontSize: 11,
-  },
-  todayCard: {
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderColor: "#EDF0EF",
-    borderRadius: 27,
-    borderWidth: 1,
+
+  // Grid / Quick Action Styles
+  gridRow: {
     flexDirection: "row",
-    paddingHorizontal: 25,
-    paddingVertical: 28,
-    shadowColor: "#263448",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 13,
-    elevation: 3,
+    gap: 16,
+    marginBottom: 16,
   },
-  todayCardCompact: {
-    borderRadius: 18,
-    paddingHorizontal: 17,
-    paddingVertical: 12,
+  gridCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderColor: "#F3F4F6",
+    borderWidth: 1.5,
+    borderRadius: 20,
+    padding: 16,
   },
-  todayTitle: {
-    color: "#111A2A",
-    fontSize: 25,
-    fontWeight: "800",
-    letterSpacing: -0.55,
-    marginLeft: 22,
+  gridIconContainer: {
+    backgroundColor: "#F5FAF7",
+    borderRadius: 16,
+    height: 48,
+    width: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  todayTitleCompact: {
-    fontSize: 19,
-    letterSpacing: -0.3,
-    marginLeft: 14,
+  gridTitle: {
+    color: "#111827",
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 16,
   },
-  todaySubtitle: {
-    color: "#6A7485",
-    fontSize: 17,
-    fontWeight: "500",
-    marginLeft: 22,
+  gridFooter: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 6,
   },
-  todaySubtitleCompact: {
+  gridSubtitle: {
+    color: "#6B7280",
     fontSize: 13,
-    marginLeft: 14,
-    marginTop: 2,
+    fontWeight: "500",
+    marginRight: 4,
   },
+
+  // Bottom Navigation Styles
   bottomNavigation: {
     backgroundColor: "#FFFFFF",
-    borderColor: "#EEF1F0",
-    borderRadius: 24,
-    borderWidth: 1,
     flexDirection: "row",
-    marginBottom: 4,
-    marginHorizontal: 9,
-    paddingBottom: 5,
-    paddingTop: 8,
-    shadowColor: "#243144",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 11,
-    elevation: 5,
+    paddingBottom: 25,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
   },
   bottomNavItem: {
     alignItems: "center",
     flex: 1,
-    minHeight: 50,
+    position: "relative",
   },
   bottomNavLabel: {
-    color: "#5B6472",
-    fontSize: 11,
+    color: "#6B7280",
+    fontSize: 12,
     fontWeight: "600",
-    marginTop: 4,
+    marginTop: 6,
   },
   bottomNavLabelActive: {
-    color: "#009A56",
-    fontWeight: "800",
+    color: "#087C49",
+    fontWeight: "700",
   },
-  activeIndicator: {
-    backgroundColor: "#009A56",
-    borderRadius: 5,
-    bottom: -5,
-    height: 4,
+  activeIndicatorLine: {
+    backgroundColor: "#087C49",
+    height: 3,
+    width: 24,
+    borderRadius: 2,
     position: "absolute",
-    width: 46,
+    bottom: -10,
   },
+
+  // Modal Styles
   modalOverlay: {
-    backgroundColor: "rgba(7, 18, 30, 0.43)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     flex: 1,
     justifyContent: "flex-end",
   },
   slotModal: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 31,
-    borderTopRightRadius: 31,
-    padding: 23,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
     paddingBottom: 34,
   },
   modalHandle: {
     alignSelf: "center",
-    backgroundColor: "#DCE3E0",
+    backgroundColor: "#E5E7EB",
     borderRadius: 3,
     height: 5,
-    marginBottom: 22,
-    width: 49,
+    marginBottom: 24,
+    width: 48,
   },
   slotModalTitle: {
-    color: "#111A2A",
-    fontSize: 23,
+    color: "#111827",
+    fontSize: 22,
     fontWeight: "800",
   },
   slotModalSubtitle: {
-    color: "#6A7485",
+    color: "#6B7280",
     fontSize: 15,
     lineHeight: 21,
-    marginBottom: 20,
-    marginTop: 6,
+    marginBottom: 24,
+    marginTop: 8,
   },
   slotOption: {
     alignItems: "center",
-    backgroundColor: "#F2F9F5",
-    borderColor: "#D9F0E4",
-    borderRadius: 19,
+    backgroundColor: "#F5FAF7",
+    borderColor: "#E8F5E9",
+    borderRadius: 16,
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 11,
-    paddingHorizontal: 18,
-    paddingVertical: 17,
+    marginBottom: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
   },
   slotOptionTitle: {
     color: "#087C49",
     fontSize: 17,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   slotOptionSubtitle: {
-    color: "#5C7D6B",
+    color: "#4B5563",
     fontSize: 13,
     marginTop: 4,
   },
   cancelButton: {
     alignItems: "center",
-    backgroundColor: "#F3F5F4",
-    borderRadius: 18,
-    marginTop: 5,
-    paddingVertical: 15,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 16,
+    marginTop: 8,
+    paddingVertical: 16,
   },
   cancelButtonText: {
-    color: "#424B59",
-    fontSize: 15,
-    fontWeight: "800",
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

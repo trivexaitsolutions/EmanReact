@@ -24,9 +24,10 @@ import {
 import { API_URL } from "../../constants/api";
 
 export default function WorkerAvailable() {
-  const { height } = useWindowDimensions();
-  const isCompact = height < 1200;
-  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 375;
+  const remainingSecondsRef = useRef<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null);
   const [isStopping, setIsStopping] = useState(false);
   const [isLoadingPool, setIsLoadingPool] = useState(true);
   const [workerSession, setWorkerSession] = useState<any>(null);
@@ -40,19 +41,23 @@ export default function WorkerAvailable() {
     loadInitialData();
 
     const timer = setInterval(() => {
-      setRemainingSeconds((previous) => {
-        if (previous === null) return previous;
+      setElapsedSeconds((previous) =>
+        previous === null ? previous : previous + 1,
+      );
 
-        if (previous <= 1) {
+      if (remainingSecondsRef.current !== null) {
+        remainingSecondsRef.current = Math.max(
+          0,
+          remainingSecondsRef.current - 1,
+        );
+
+        if (remainingSecondsRef.current === 0) {
           if (!autoOfflineDoneRef.current) {
             autoOfflineDoneRef.current = true;
             stopAvailability(true);
           }
-          return 0;
         }
-
-        return previous - 1;
-      });
+      }
     }, 1000);
 
     const dutyPoller = setInterval(async () => {
@@ -73,7 +78,6 @@ export default function WorkerAvailable() {
       clearInterval(timer);
       clearInterval(dutyPoller);
     };
-    // The pool session should be initialized only once when this screen opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -108,7 +112,19 @@ export default function WorkerAvailable() {
 
       if (response.data.success && response.data.isAvailable) {
         setPoolInfo(response.data);
-        setRemainingSeconds(response.data.remainingSeconds || 0);
+        remainingSecondsRef.current = response.data.remainingSeconds || 0;
+        setElapsedSeconds(
+          Number.isFinite(Number(response.data.elapsedSeconds))
+            ? Math.max(0, Number(response.data.elapsedSeconds))
+            : Math.max(
+                0,
+                Math.floor(
+                  (Date.now() -
+                    new Date(response.data.availabilityStart).getTime()) /
+                    1000,
+                ),
+              ),
+        );
         return;
       }
 
@@ -198,10 +214,13 @@ export default function WorkerAvailable() {
     ]);
   };
 
-  const formatRemainingTime = (seconds: number | null) => {
+  const formatElapsedTime = (seconds: number | null) => {
     const safeSeconds = Math.max(0, seconds || 0);
     const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, "0");
-    const minutes = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, "0");
+    const minutes = String(Math.floor((safeSeconds % 3600) / 60)).padStart(
+      2,
+      "0",
+    );
     const secs = String(safeSeconds % 60).padStart(2, "0");
     return { hours, minutes, secs };
   };
@@ -216,48 +235,55 @@ export default function WorkerAvailable() {
     });
   };
 
+  const getFormattedDate = () => {
+    const date = new Date();
+    const dateOptions: Intl.DateTimeFormatOptions = {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    };
+    const dayOptions: Intl.DateTimeFormatOptions = { weekday: "long" };
+
+    const dateString = date.toLocaleDateString("en-US", dateOptions);
+    const dayString = date.toLocaleDateString("en-US", dayOptions);
+    return `${dateString} • ${dayString}`;
+  };
+
   if (isLoadingPool) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#009A56" />
+        <ActivityIndicator size="large" color="#187A46" />
         <Text style={styles.loaderText}>Loading pool status...</Text>
       </View>
     );
   }
 
-  const firstName =
-    workerSession?.name?.split(" ")[0] ||
-    workerSession?.fullName?.split(" ")[0] ||
-    "Worker";
-  const displayDate = new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    weekday: "long",
-  }).format(new Date());
-  const { hours, minutes, secs } = formatRemainingTime(remainingSeconds);
-  const showsHours = hours !== "00";
-  const timerValue = showsHours ? `${hours}:${minutes}` : `${minutes}:${secs}`;
-  const timerUnits = showsHours ? "HH                 MM" : "MM                 SS";
+  const workerFullName =
+    workerSession?.name || workerSession?.fullName || "Worker";
+  const { hours, minutes, secs } = formatElapsedTime(elapsedSeconds);
+  const displayDate = getFormattedDate();
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.content}>
-        <View style={styles.greetingBlock}>
-          <Text style={[styles.greeting, isCompact && styles.greetingCompact]}>
-            Good Morning,
-          </Text>
-          <View style={styles.nameStatusRow}>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.72}
-              numberOfLines={1}
-              style={[styles.workerName, isCompact && styles.workerNameCompact]}
-            >
-              {firstName}
-            </Text>
+        {/* Header Section */}
+        <View style={styles.headerContainer}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerTextGroup}>
+              <Text style={styles.greeting}>Good Morning,</Text>
+              <Text
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                style={[
+                  styles.workerName,
+                  isNarrow && styles.workerNameCompact,
+                ]}
+              >
+                {workerFullName}
+              </Text>
+            </View>
             <View style={styles.poolBadge}>
               <View style={styles.poolDot} />
               <Text style={styles.poolBadgeText}>In Pool</Text>
@@ -266,61 +292,87 @@ export default function WorkerAvailable() {
           <Text style={styles.dateText}>{displayDate}</Text>
         </View>
 
-        <View style={[styles.timerCard, isCompact && styles.timerCardCompact]}>
-          <View style={styles.timerGlowLarge} />
-          <View style={styles.timerGlowSmall} />
-
-          <View style={[styles.peopleIcon, isCompact && styles.peopleIconCompact]}>
-            <UsersRound color="#008A4B" size={isCompact ? 31 : 38} strokeWidth={2.1} />
-          </View>
-          <Text style={[styles.timerTitle, isCompact && styles.timerTitleCompact]}>
-            Time Pass
-          </Text>
-          <Text style={[styles.timerValue, isCompact && styles.timerValueCompact]}>
-            {timerValue}
-          </Text>
-          <Text style={[styles.timerUnits, isCompact && styles.timerUnitsCompact]}>
-            {timerUnits}
-          </Text>
-
-          <View style={[styles.poolStarted, isCompact && styles.poolStartedCompact]}>
-            <View style={styles.poolStartedIcon}>
-              <Clock3 color="#009A56" size={isCompact ? 21 : 25} />
+        {/* Timer Card Section */}
+        <View style={styles.timerCard}>
+          <View style={styles.iconOuter}>
+            <View style={styles.iconInner}>
+              <UsersRound color="#187A46" size={32} strokeWidth={2.5} />
             </View>
-            <Text style={[styles.poolStartedText, isCompact && styles.poolStartedTextCompact]}>
+          </View>
+
+          <Text style={styles.timerTitle}>Time Pass</Text>
+
+          <View style={styles.timerWrapper}>
+            <Text
+              style={[
+                styles.timerNumberText,
+                isNarrow && styles.timerNumberTextNarrow,
+              ]}
+            >
+              {hours !== "00"
+                ? `${hours}:${minutes}:${secs}`
+                : `${minutes}:${secs}`}
+            </Text>
+
+            <View style={styles.timerLabelsRow}>
+              {hours !== "00" && (
+                <>
+                  <Text style={styles.timerLabel}>HH</Text>
+                  <Text style={styles.timerLabelDivider}>|</Text>
+                </>
+              )}
+              <Text style={styles.timerLabel}>MM</Text>
+              <Text style={styles.timerLabelDivider}>|</Text>
+              <Text style={styles.timerLabel}>SS</Text>
+            </View>
+          </View>
+
+          <View style={styles.poolStarted}>
+            <Clock3 color="#187A46" size={20} strokeWidth={2.5} />
+            <Text style={styles.poolStartedText}>
               Pool started at {formatDisplayTime(poolInfo?.availabilityStart)}
             </Text>
           </View>
         </View>
 
+        {/* Offline Button */}
         <TouchableOpacity
           activeOpacity={0.88}
           disabled={isStopping}
           onPress={handleStopAvailability}
-          style={[styles.offlineButton, isCompact && styles.offlineButtonCompact]}
+          style={styles.offlineButton}
         >
           {isStopping ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <>
-              <Power color="#FFFFFF" size={isCompact ? 27 : 31} strokeWidth={2.1} />
-              <Text style={[styles.offlineButtonText, isCompact && styles.offlineButtonTextCompact]}>
-                Go Offline
-              </Text>
+              <Power color="#FFFFFF" size={24} strokeWidth={2.5} />
+              <Text style={styles.offlineButtonText}>Go Offline</Text>
             </>
           )}
         </TouchableOpacity>
       </View>
 
+      {/* Bottom Navigation */}
       <View style={styles.bottomNavigation}>
-        <BottomNavItem active icon={<House color="#009A56" size={25} />} label="Home" />
         <BottomNavItem
-          icon={<BriefcaseBusiness color="#5B6472" size={25} />}
+          active
+          icon={<House color="#187A46" size={26} strokeWidth={2.5} />}
+          label="Home"
+        />
+        <BottomNavItem
+          icon={<BriefcaseBusiness color="#6B7280" size={26} strokeWidth={2} />}
           label="Bookings"
           onPress={() => router.push("/worker/history")}
         />
-        <BottomNavItem icon={<Wallet color="#5B6472" size={25} />} label="Earnings" />
-        <BottomNavItem icon={<CircleUserRound color="#5B6472" size={25} />} label="Profile" />
+        <BottomNavItem
+          icon={<Wallet color="#6B7280" size={26} strokeWidth={2} />}
+          label="Earnings"
+        />
+        <BottomNavItem
+          icon={<CircleUserRound color="#6B7280" size={26} strokeWidth={2} />}
+          label="Profile"
+        />
       </View>
     </SafeAreaView>
   );
@@ -341,13 +393,14 @@ function BottomNavItem({
     <TouchableOpacity
       activeOpacity={onPress ? 0.8 : 1}
       onPress={onPress}
-      style={styles.bottomNavItem}
+      style={[styles.bottomNavItem, active && styles.bottomNavItemActive]}
     >
       {icon}
-      <Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>
+      <Text
+        style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}
+      >
         {label}
       </Text>
-      {active ? <View style={styles.activeIndicator} /> : null}
     </TouchableOpacity>
   );
 }
@@ -364,264 +417,195 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   loaderText: {
-    color: "#657080",
+    color: "#6B7280",
     fontSize: 14,
     fontWeight: "600",
     marginTop: 12,
   },
   content: {
     flex: 1,
-    justifyContent: "space-between",
-    paddingBottom: 12,
-    paddingHorizontal: 22,
-    paddingTop: 28,
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
-  greetingBlock: {
-    paddingTop: 2,
+
+  // Header Styles
+  headerContainer: {
+    marginBottom: 20,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  headerTextGroup: {
+    flex: 1,
+    paddingRight: 15,
   },
   greeting: {
-    color: "#111B2B",
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: -0.8,
-    lineHeight: 37,
-  },
-  greetingCompact: {
-    fontSize: 25,
-    lineHeight: 30,
-  },
-  nameStatusRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 9,
+    color: "#111827",
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 4,
   },
   workerName: {
-    color: "#008D4E",
-    flex: 1,
-    fontSize: 43,
+    color: "#187A46",
+    fontSize: 34,
     fontWeight: "900",
-    letterSpacing: -1.5,
-    lineHeight: 51,
+    letterSpacing: -0.5,
   },
   workerNameCompact: {
-    fontSize: 33,
-    letterSpacing: -1.1,
-    lineHeight: 39,
+    fontSize: 28,
+  },
+  dateText: {
+    color: "#6B7280",
+    fontSize: 15,
+    fontWeight: "500",
+    marginTop: 8,
   },
   poolBadge: {
     alignItems: "center",
-    backgroundColor: "#E8F8EC",
-    borderColor: "#91D8A8",
-    borderRadius: 21,
+    backgroundColor: "#E8F5E9",
+    borderColor: "#A5D6B8",
+    borderRadius: 20,
     borderWidth: 1,
     flexDirection: "row",
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 6,
+    marginTop: 4,
   },
   poolDot: {
-    backgroundColor: "#009A56",
-    borderRadius: 7,
-    height: 14,
-    marginRight: 8,
-    width: 14,
+    backgroundColor: "#187A46",
+    borderRadius: 6,
+    height: 10,
+    marginRight: 6,
+    width: 10,
   },
   poolBadgeText: {
-    color: "#008A4B",
-    fontSize: 16,
-    fontWeight: "800",
+    color: "#187A46",
+    fontSize: 13,
+    fontWeight: "700",
   },
-  dateText: {
-    color: "#6A7381",
-    fontSize: 16,
-    fontWeight: "600",
-    marginTop: 5,
-  },
+
+  // Timer Card Styles
   timerCard: {
     alignItems: "center",
-    backgroundColor: "#008D4E",
+    backgroundColor: "#187A46",
     borderRadius: 24,
-    height: 345,
-    justifyContent: "center",
-    overflow: "hidden",
-    paddingHorizontal: 22,
+    padding: 24,
+    width: "100%",
   },
-  timerCardCompact: {
-    borderRadius: 20,
-    height: 270,
-    paddingHorizontal: 16,
+  iconOuter: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    borderRadius: 50,
+    padding: 8,
   },
-  timerGlowLarge: {
-    backgroundColor: "rgba(2, 103, 56, 0.48)",
-    borderRadius: 210,
-    bottom: -190,
-    height: 410,
-    position: "absolute",
-    right: -120,
-    width: 410,
-  },
-  timerGlowSmall: {
-    backgroundColor: "rgba(112, 225, 159, 0.13)",
-    borderRadius: 165,
-    height: 330,
-    left: -190,
-    position: "absolute",
-    top: -210,
-    width: 330,
-  },
-  peopleIcon: {
-    alignItems: "center",
+  iconInner: {
     backgroundColor: "#FFFFFF",
-    borderColor: "rgba(174, 250, 203, 0.48)",
-    borderRadius: 39,
-    borderWidth: 8,
-    height: 78,
+    borderRadius: 50,
+    padding: 12,
+    alignItems: "center",
     justifyContent: "center",
-    width: 78,
-  },
-  peopleIconCompact: {
-    borderRadius: 31,
-    borderWidth: 6,
-    height: 62,
-    width: 62,
   },
   timerTitle: {
     color: "#FFFFFF",
-    fontSize: 31,
-    fontWeight: "800",
-    marginTop: 11,
+    fontSize: 22,
+    fontWeight: "600",
+    marginTop: 16,
   },
-  timerTitleCompact: {
-    fontSize: 24,
-    marginTop: 7,
+  timerWrapper: {
+    alignItems: "center",
+    marginVertical: 20,
   },
-  timerValue: {
+  timerNumberText: {
     color: "#FFFFFF",
-    fontSize: 112,
+    fontSize: 78,
     fontVariant: ["tabular-nums"],
-    fontWeight: "900",
-    letterSpacing: -4,
-    lineHeight: 127,
-    marginTop: 1,
-  },
-  timerValueCompact: {
-    fontSize: 80,
-    letterSpacing: -3,
-    lineHeight: 91,
-  },
-  timerUnits: {
-    color: "#A7E5C0",
-    fontSize: 17,
     fontWeight: "800",
-    letterSpacing: 1.8,
-    marginTop: -4,
+    letterSpacing: -1.5,
+    includeFontPadding: false,
   },
-  timerUnitsCompact: {
-    fontSize: 12,
-    letterSpacing: 1.2,
-    marginTop: -3,
+  timerNumberTextNarrow: {
+    fontSize: 62,
+  },
+  timerLabelsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: -5,
+  },
+  timerLabel: {
+    color: "#A5D6B8",
+    fontSize: 16,
+    fontWeight: "600",
+    width: 45,
+    textAlign: "center",
+    letterSpacing: 0.5,
+  },
+  timerLabelDivider: {
+    color: "#A5D6B8",
+    fontSize: 16,
+    marginHorizontal: 15,
   },
   poolStarted: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    bottom: 24,
-    flexDirection: "row",
-    left: 22,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    position: "absolute",
-    right: 22,
-  },
-  poolStartedCompact: {
-    borderRadius: 13,
-    bottom: 15,
-    left: 16,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    right: 16,
-  },
-  poolStartedIcon: {
-    alignItems: "center",
-    backgroundColor: "#E7F8ED",
-    borderRadius: 22,
-    height: 44,
-    justifyContent: "center",
-    marginRight: 12,
-    width: 44,
+    paddingVertical: 18,
+    width: "100%",
+    marginTop: 10,
   },
   poolStartedText: {
-    color: "#135A35",
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "800",
+    color: "#111827",
+    fontSize: 15,
+    fontWeight: "700",
+    marginLeft: 10,
   },
-  poolStartedTextCompact: {
-    fontSize: 13,
-  },
+
+  // Offline Button Styles
   offlineButton: {
-    alignItems: "center",
-    backgroundColor: "#078C4E",
-    borderRadius: 18,
     flexDirection: "row",
-    height: 77,
+    alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#0B5B36",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  offlineButtonCompact: {
-    borderRadius: 15,
-    height: 61,
+    backgroundColor: "#187A46",
+    borderRadius: 16,
+    paddingVertical: 18,
+    marginTop: 24,
   },
   offlineButtonText: {
     color: "#FFFFFF",
-    fontSize: 25,
-    fontWeight: "800",
-    marginLeft: 17,
-  },
-  offlineButtonTextCompact: {
     fontSize: 20,
+    fontWeight: "700",
     marginLeft: 12,
   },
+
+  // Bottom Navigation Styles
   bottomNavigation: {
     backgroundColor: "#FFFFFF",
-    borderColor: "#EDF0EF",
-    borderRadius: 25,
-    borderWidth: 1,
     flexDirection: "row",
-    marginBottom: 4,
-    marginHorizontal: 9,
-    paddingBottom: 5,
-    paddingTop: 8,
-    shadowColor: "#243144",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 11,
-    elevation: 5,
+    paddingBottom: 25,
+    paddingTop: 15,
+    paddingHorizontal: 15,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
   },
   bottomNavItem: {
     alignItems: "center",
     flex: 1,
-    minHeight: 50,
+    paddingVertical: 10,
+    borderRadius: 16,
+  },
+  bottomNavItemActive: {
+    backgroundColor: "#E8F5E9",
   },
   bottomNavLabel: {
-    color: "#5B6472",
-    fontSize: 11,
+    color: "#6B7280",
+    fontSize: 12,
     fontWeight: "600",
-    marginTop: 4,
+    marginTop: 6,
   },
   bottomNavLabelActive: {
-    color: "#009A56",
-    fontWeight: "800",
-  },
-  activeIndicator: {
-    backgroundColor: "#009A56",
-    borderRadius: 5,
-    bottom: -5,
-    height: 4,
-    position: "absolute",
-    width: 46,
+    color: "#187A46",
+    fontWeight: "700",
   },
 });
