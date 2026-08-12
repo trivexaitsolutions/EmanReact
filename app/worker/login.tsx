@@ -32,6 +32,12 @@ export default function WorkerLoginScreen() {
 
     setIsLoading(true);
     try {
+      console.log(
+        "Attempting login with:",
+        loginId,
+        password,
+        `${API_URL}/worker/login`,
+      );
       const response = await axios.post(`${API_URL}/worker/login`, {
         loginId: loginId.toLowerCase(), // Emails should be lowercase
         password,

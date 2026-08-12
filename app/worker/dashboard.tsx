@@ -1,20 +1,15 @@
-// app/worker/dashboard.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack } from "expo-router";
 import {
-  AlertTriangle,
-  Award,
   BriefcaseBusiness,
+  CalendarX,
   ChevronRight,
-  Headphones,
-  History,
+  CircleUserRound,
+  Clock3,
+  House,
   LogOut,
-  Power,
-  ShieldCheck,
-  Sparkles,
-  Star,
-  Timer,
+  MousePointerClick,
   Wallet,
 } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
@@ -23,35 +18,37 @@ import {
   Alert,
   Modal,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 import { registerForPushNotificationsAsync } from "../../utils/pushToken";
 
+const SLOT_OPTIONS = [2, 3, 4];
+
 export default function WorkerDashboard() {
+  const { height } = useWindowDimensions();
+  // Keep one compact composition on phones. Only tablet-sized windows get the
+  // more spacious variant, so a phone's pixel density cannot change the UI.
+  const isCompact = height < 1200;
   const [workerData, setWorkerData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-
   const [isHolding, setIsHolding] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
-
-  const holdTimerRef = useRef<any>(null);
-  const holdIntervalRef = useRef<any>(null);
-  const holdCompletedRef = useRef(false);
   const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
-  const SLOT_OPTIONS = [2, 3, 4];
+
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const holdCompletedRef = useRef(false);
 
   useEffect(() => {
     fetchDashboardData();
     setupNotifications();
 
-    return () => {
-      clearHoldTimers();
-    };
+    return clearHoldTimers;
   }, []);
 
   const clearHoldTimers = () => {
@@ -72,61 +69,38 @@ export default function WorkerDashboard() {
       if (!session) return;
 
       const parsedData = JSON.parse(session);
-      const currentWorkerId = parsedData.id;
-
       const token = await registerForPushNotificationsAsync();
 
       if (token) {
-        console.log("Dashboard ko token mil gaya: ", token);
-
-        const response = await axios.post(`${API_URL}/worker/save-push-token`, {
-          workerId: currentWorkerId,
+        await axios.post(`${API_URL}/worker/save-push-token`, {
+          workerId: parsedData.id,
           pushToken: token,
         });
-
-        if (response.data.success) {
-          console.log("✅ Token successfully Database me save ho gaya!");
-        }
       }
     } catch (error: any) {
-      console.log("Token lene me error aaya: " + error.message);
+      console.log("Push token setup error:", error.message);
     }
-  };
-
-  const isSlotAllowed = (hours: number) => {
-    return true;
-  };
-
-  const handleSelectSlot = async (hours: number) => {
-    if (!isSlotAllowed(hours)) {
-      Alert.alert(
-        "Slot Not Available",
-        `${hours} hours slot currently available nahi hai.`,
-      );
-      return;
-    }
-
-    setIsSlotModalOpen(false);
-    await handleGoOnline("SHORT_PERIOD", hours);
   };
 
   const fetchDashboardData = async () => {
     try {
       const session = await AsyncStorage.getItem("workerSession");
+      if (!session) {
+        router.replace("/");
+        return;
+      }
 
-      if (session) {
-        const parsedData = JSON.parse(session);
+      const parsedData = JSON.parse(session);
+      const response = await axios.get(
+        `${API_URL}/worker/dashboard/${parsedData.id}`,
+      );
 
-        const response = await axios.get(
-          `${API_URL}/worker/dashboard/${parsedData.id}`,
-        );
-
-        if (response.data.success) {
-          setWorkerData(response.data.data);
-        }
+      if (response.data.success) {
+        setWorkerData(response.data.data);
       }
     } catch (error) {
       console.log("Dashboard fetch error", error);
+      Alert.alert("Unable to load", "Dashboard data load nahi ho paya.");
     } finally {
       setIsLoading(false);
     }
@@ -141,10 +115,13 @@ export default function WorkerDashboard() {
       if (!session) return;
 
       const parsedData = JSON.parse(session);
-      const workerId = parsedData.id;
-
-      const payload: any = {
-        workerId,
+      const payload: {
+        workerId: number;
+        status: boolean;
+        availabilityType: "FULL_DAY" | "SHORT_PERIOD";
+        availabilityHours?: number;
+      } = {
+        workerId: parsedData.id,
         status: true,
         availabilityType,
       };
@@ -158,48 +135,46 @@ export default function WorkerDashboard() {
         payload,
       );
 
-      if (response.data.success) {
-        try {
-          const dutyResponse = await axios.get(
-            `${API_URL}/worker/current-duty/${workerId}`,
-          );
+      if (!response.data.success) return;
 
-          if (dutyResponse.data.success && dutyResponse.data.duty) {
-            Alert.alert("Duty Active", "Aapka ek kaam pehle se chal raha hai!");
-            router.replace("/worker/active-duty");
-          } else {
-            Alert.alert(
-              "You are Online",
-              response.data.message || "Aap pool mein add ho gaye hain.",
-            );
-            router.push("/worker/available");
-          }
-        } catch (dutyError) {
-          console.log("Duty check error", dutyError);
-          router.push("/worker/available");
+      try {
+        const dutyResponse = await axios.get(
+          `${API_URL}/user/worker/current-duty/${parsedData.id}`,
+        );
+
+        if (dutyResponse.data.success && dutyResponse.data.duty) {
+          Alert.alert("Duty Active", "Aapka ek kaam pehle se chal raha hai!");
+          router.replace("/worker/active-duty");
+          return;
         }
+      } catch (dutyError) {
+        console.log("Duty check error", dutyError);
       }
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message || "Server se connect nahi ho paya";
 
-      Alert.alert("Error", message);
+      Alert.alert(
+        "You are Online",
+        response.data.message || "Aap pool mein add ho gaye hain.",
+      );
+      router.push("/worker/available");
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error?.response?.data?.message || "Server se connect nahi ho paya.",
+      );
     }
   };
 
   const startFullDayHold = () => {
+    if (isHolding) return;
+
     holdCompletedRef.current = false;
     setIsHolding(true);
     setHoldProgress(0);
 
     let progress = 0;
-
     holdIntervalRef.current = setInterval(() => {
       progress += 1;
-
-      if (progress <= 100) {
-        setHoldProgress(progress);
-      }
+      if (progress <= 100) setHoldProgress(progress);
     }, 30);
 
     holdTimerRef.current = setTimeout(async () => {
@@ -207,7 +182,6 @@ export default function WorkerDashboard() {
       clearHoldTimers();
       setHoldProgress(100);
       setIsHolding(false);
-
       await handleGoOnline();
     }, 3000);
   };
@@ -218,10 +192,6 @@ export default function WorkerDashboard() {
     clearHoldTimers();
     setIsHolding(false);
     setHoldProgress(0);
-  };
-
-  const handleSomeHoursAvailable = () => {
-    setIsSlotModalOpen(true);
   };
 
   const handleLogout = () => {
@@ -238,227 +208,182 @@ export default function WorkerDashboard() {
     ]);
   };
 
-  if (isLoading || !workerData) {
+  if (isLoading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color="#009A56" />
         <Text style={styles.loaderText}>Loading your dashboard...</Text>
       </View>
     );
   }
 
   const firstName = workerData?.name?.split(" ")[0] || "Worker";
-  const score = workerData?.score || "4.2";
-  const level = workerData?.level || "Silver";
-  const weeklyEarning = workerData?.weeklyEarning || "0";
-  const emanId = workerData?.emanId || "EMN-MUM-XXXX";
+  const weeklyEarning = Number(workerData?.weeklyEarning || 0);
+  const dateLabel = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.topBg}>
-        <View style={styles.appBar}>
-          <View>
-            <Text style={styles.logo}>E-MAN Worker</Text>
-            <Text style={styles.logoSub}>Field Partner Dashboard</Text>
-          </View>
-
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-            <LogOut color="#EF4444" size={21} />
+      <View style={[styles.content, isCompact && styles.contentCompact]}>
+        <View style={[styles.headerRow, isCompact && styles.headerRowCompact]}>
+          <Text style={styles.brand}>E-MAN</Text>
+          <TouchableOpacity
+            accessibilityLabel="Log out"
+            onPress={handleLogout}
+            style={styles.logoutButton}
+          >
+            <LogOut color="#5B6472" size={20} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.greetingBox}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {String(firstName).charAt(0).toUpperCase()}
+        <View>
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.72}
+            numberOfLines={1}
+            style={[styles.greeting, isCompact && styles.greetingCompact]}
+          >
+            Good Morning, <Text style={styles.greetingName}>{firstName}</Text>
+            <Text> 👋</Text>
+          </Text>
+          <Text style={[styles.dateText, isCompact && styles.dateTextCompact]}>
+            {dateLabel}
+          </Text>
+        </View>
+
+        <View style={[styles.statusStrip, isCompact && styles.statusStripCompact]}>
+          <View style={styles.statusDot} />
+          <Text style={styles.statusLabel}>Status:</Text>
+          <Text style={styles.statusValue}>Not in pool</Text>
+        </View>
+
+        <TouchableOpacity
+          activeOpacity={0.92}
+          delayLongPress={0}
+          onPressIn={startFullDayHold}
+          onPressOut={cancelFullDayHold}
+          style={[styles.fullDayCard, isCompact && styles.fullDayCardCompact]}
+        >
+          <View style={styles.fullDayGlowLarge} />
+          <View style={styles.fullDayGlowSmall} />
+
+          <View style={[styles.fullDayTextSide, isCompact && styles.fullDayTextSideCompact]}>
+            <Text style={[styles.fullDayPrompt, isCompact && styles.fullDayPromptCompact]}>
+              {isHolding ? "Keep holding..." : "Hold 3 sec to go Available"}
+            </Text>
+            <Text style={[styles.fullDayTitle, isCompact && styles.fullDayTitleCompact]}>
+              Full Day Pool
+            </Text>
+            <Text
+              style={[
+                styles.fullDaySubtitle,
+                isCompact && styles.fullDaySubtitleCompact,
+              ]}
+            >
+              Be visible for full-day work
             </Text>
           </View>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.greetingSmall}>Namaste 👋</Text>
-            <Text style={styles.workerName}>{firstName}</Text>
-
-            <View style={styles.idRow}>
-              <Text style={styles.workerId}>{emanId}</Text>
-              <View style={styles.dot} />
-              <Star color="#FBBF24" fill="#FBBF24" size={13} />
-              <Text style={styles.scoreText}>{score}</Text>
-            </View>
-          </View>
-
-          <View style={styles.levelBadge}>
-            <Award color="#FFFFFF" size={13} />
-            <Text style={styles.levelText}>{level}</Text>
-          </View>
-        </View>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        <View style={styles.statusCard}>
-          <View style={styles.statusIconBox}>
-            <Sparkles color="#10B981" size={24} />
-          </View>
-
-          <View style={{ flex: 1 }}>
-            <Text style={styles.statusTitle}>Ready to work today?</Text>
-            <Text style={styles.statusSub}>
-              Hold full-day button for 3 seconds to go online.
-            </Text>
-          </View>
-        </View>
-
-        {/* AVAILABILITY SECTION */}
-        <View style={styles.availabilitySection}>
-          <Text style={styles.sectionTitle}>Availability</Text>
-
-          <TouchableOpacity
-            activeOpacity={0.92}
-            onPressIn={startFullDayHold}
-            onPressOut={cancelFullDayHold}
+          <View
             style={[
-              styles.fullDayButton,
-              isHolding && styles.fullDayButtonHolding,
+              styles.holdCircle,
+              isCompact && styles.holdCircleCompact,
+              isHolding && styles.holdCircleActive,
             ]}
           >
-            {isHolding && (
-              <View
-                style={[
-                  styles.fullDayProgressOverlay,
-                  { width: `${holdProgress}%` },
-                ]}
+            <View style={styles.holdCircleInner}>
+              <MousePointerClick
+                color="#FFFFFF"
+                size={isCompact ? 33 : 47}
+                strokeWidth={2.1}
               />
-            )}
-
-            <View style={styles.fullDayContent}>
-              <View style={styles.fullDayIcon}>
-                <Power color="#FFFFFF" size={26} />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fullDayTitle}>I am available</Text>
-                <Text style={styles.fullDaySub}>For full day</Text>
-                <Text style={styles.fullDayHint}>
-                  {isHolding
-                    ? "Keep holding..."
-                    : "Press and hold for 3 seconds"}
-                </Text>
-              </View>
-
-              <View style={styles.holdBadge}>
-                <Text style={styles.holdBadgeText}>
-                  {isHolding ? `${holdProgress}%` : "HOLD"}
-                </Text>
-              </View>
+              <Text
+                style={[styles.holdCircleText, isCompact && styles.holdCircleTextCompact]}
+              >
+                {isHolding ? `${holdProgress}%` : "Hold to"}
+              </Text>
+              <Text
+                style={[styles.holdCircleText, isCompact && styles.holdCircleTextCompact]}
+              >
+                {isHolding ? "Activating" : "Activate"}
+              </Text>
             </View>
+          </View>
+        </TouchableOpacity>
 
-            <View style={styles.progressTrack}>
-              <View
-                style={[styles.progressFill, { width: `${holdProgress}%` }]}
-              />
-            </View>
-          </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={() => setIsSlotModalOpen(true)}
+          style={[styles.someHoursCard, isCompact && styles.someHoursCardCompact]}
+        >
+          <View style={[styles.lightIconCircle, isCompact && styles.lightIconCircleCompact]}>
+            <Clock3 color="#009A56" size={isCompact ? 28 : 39} strokeWidth={2.15} />
+          </View>
+          <View style={styles.someHoursCopy}>
+            <Text style={[styles.someHoursTitle, isCompact && styles.someHoursTitleCompact]}>
+              Some Hours Work
+            </Text>
+            <Text style={[styles.someHoursSubtitle, isCompact && styles.someHoursSubtitleCompact]}>
+              Quick slots
+            </Text>
+          </View>
+          <ChevronRight color="#009A56" size={isCompact ? 25 : 32} strokeWidth={2.2} />
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={handleSomeHoursAvailable}
-            style={styles.someHoursButton}
-          >
-            <View style={styles.someHoursIcon}>
-              <Timer color="#059669" size={24} />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.someHoursTitle}>I am available</Text>
-              <Text style={styles.someHoursSub}>For some hours</Text>
-            </View>
-
-            <View style={styles.selectPill}>
-              <Text style={styles.selectPillText}>Select</Text>
-            </View>
-          </TouchableOpacity>
+        <View style={[styles.quickActionRow, isCompact && styles.quickActionRowCompact]}>
+          <QuickAction
+            compact={isCompact}
+            icon={<Wallet color="#009A56" size={38} strokeWidth={2.1} />}
+            title="Earnings"
+            subtitle={`₹${weeklyEarning.toLocaleString("en-IN")}`}
+            onPress={() => router.push("/worker/history")}
+          />
+          <QuickAction
+            compact={isCompact}
+            icon={<Wallet color="#009A56" size={38} strokeWidth={2.1} />}
+            title="Wallet"
+            subtitle="View balance"
+          />
         </View>
 
-        {/* EARNING / WALLET */}
-        <View style={styles.moneyRow}>
-          <View style={styles.earningCard}>
-            <View style={styles.cardTopRow}>
-              <View style={styles.walletIconBox}>
-                <Wallet color="#FFFFFF" size={22} />
-              </View>
-              <Text style={styles.moneyLabel}>This Week</Text>
-            </View>
-
-            <Text style={styles.moneyAmount}>₹{weeklyEarning}</Text>
-            <Text style={styles.moneySub}>Sunday payout · 3 days left</Text>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={[styles.todayCard, isCompact && styles.todayCardCompact]}
+          onPress={() => router.push("/worker/history")}
+        >
+          <View style={[styles.lightIconCircle, isCompact && styles.lightIconCircleCompact]}>
+            <CalendarX color="#009A56" size={isCompact ? 27 : 35} strokeWidth={2.1} />
           </View>
-
-          <View style={styles.quickWalletCard}>
-            <View style={styles.quickWalletIcon}>
-              <BriefcaseBusiness color="#059669" size={24} />
-            </View>
-            <Text style={styles.quickWalletTitle}>Wallet</Text>
-            <Text style={styles.quickWalletSub}>Payments</Text>
+          <View>
+            <Text style={[styles.todayTitle, isCompact && styles.todayTitleCompact]}>
+              Today
+            </Text>
+            <Text style={[styles.todaySubtitle, isCompact && styles.todaySubtitleCompact]}>
+              No duty assigned
+            </Text>
           </View>
-        </View>
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.insuranceCard}>
-          <View style={styles.insuranceIcon}>
-            <ShieldCheck color="#FFFFFF" size={24} />
-          </View>
+      <View style={styles.bottomNavigation}>
+        <BottomNavItem active icon={<House color="#009A56" size={27} />} label="Home" />
+        <BottomNavItem
+          icon={<BriefcaseBusiness color="#5B6472" size={27} />}
+          label="Jobs"
+          onPress={() => router.push("/worker/history")}
+        />
+        <BottomNavItem icon={<Wallet color="#5B6472" size={27} />} label="Wallet" />
+        <BottomNavItem
+          icon={<CircleUserRound color="#5B6472" size={27} />}
+          label="Profile"
+        />
+      </View>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.insuranceTitle}>Insurance Active</Text>
-            <Text style={styles.insuranceSub}>Free ₹3 lakh accident cover</Text>
-          </View>
-
-          <ChevronRight color="#A7F3D0" size={22} />
-        </View>
-
-        {/* OTHER OPTIONS */}
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>Other Options</Text>
-
-          <View style={styles.menuList}>
-            <MenuItem
-              icon={<Star color="#10B981" size={20} />}
-              title={`My E-MAN Score (${score})`}
-              subTitle="Rating and performance"
-            />
-
-            <MenuItem
-              icon={<ShieldCheck color="#10B981" size={20} />}
-              title="My Insurance"
-              subTitle="Coverage and documents"
-            />
-
-            <MenuItem
-              icon={<History color="#10B981" size={20} />}
-              title="Work History"
-              subTitle="Past bookings and duty records"
-              onPress={() => router.push("/worker/history")}
-            />
-
-            <MenuItem
-              icon={<AlertTriangle color="#EF4444" size={20} />}
-              title="Raise an Issue"
-              subTitle="Report duty or payment issue"
-            />
-
-            <MenuItem
-              icon={<Headphones color="#10B981" size={20} />}
-              title="Support 24/7"
-              subTitle="Call or message support team"
-            />
-          </View>
-        </View>
-
-        <View style={{ height: 35 }} />
-      </ScrollView>
       <Modal
         visible={isSlotModalOpen}
         transparent
@@ -467,63 +392,37 @@ export default function WorkerDashboard() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.slotModal}>
-            <Text style={styles.slotModalTitle}>Select Availability Slot</Text>
-            <Text style={styles.slotModalSub}>
-              Choose how many hours you want to stay in the pool.
+            <View style={styles.modalHandle} />
+            <Text style={styles.slotModalTitle}>Choose your work hours</Text>
+            <Text style={styles.slotModalSubtitle}>
+              Select how long you would like to be available today.
             </Text>
 
-            {SLOT_OPTIONS.map((hours) => {
-              const allowed = isSlotAllowed(hours);
-
-              return (
-                <TouchableOpacity
-                  key={hours}
-                  activeOpacity={allowed ? 0.85 : 1}
-                  disabled={!allowed}
-                  onPress={() => handleSelectSlot(hours)}
-                  style={[
-                    styles.slotOption,
-                    !allowed && styles.slotOptionDisabled,
-                  ]}
-                >
-                  <View>
-                    <Text
-                      style={[
-                        styles.slotOptionTitle,
-                        !allowed && styles.slotOptionTitleDisabled,
-                      ]}
-                    >
-                      Next {hours} Hours
-                    </Text>
-                    <Text
-                      style={[
-                        styles.slotOptionSub,
-                        !allowed && styles.slotOptionSubDisabled,
-                      ]}
-                    >
-                      {allowed
-                        ? `Available for next ${hours} hours`
-                        : "Not available"}
-                    </Text>
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.slotOptionAction,
-                      !allowed && styles.slotOptionActionDisabled,
-                    ]}
-                  >
-                    {allowed ? "Select" : "Closed"}
+            {SLOT_OPTIONS.map((hours) => (
+              <TouchableOpacity
+                key={hours}
+                activeOpacity={0.85}
+                onPress={async () => {
+                  setIsSlotModalOpen(false);
+                  await handleGoOnline("SHORT_PERIOD", hours);
+                }}
+                style={styles.slotOption}
+              >
+                <View>
+                  <Text style={styles.slotOptionTitle}>Next {hours} Hours</Text>
+                  <Text style={styles.slotOptionSubtitle}>
+                    Join the quick-work pool
                   </Text>
-                </TouchableOpacity>
-              );
-            })}
+                </View>
+                <ChevronRight color="#009A56" size={25} />
+              </TouchableOpacity>
+            ))}
 
             <TouchableOpacity
-              style={styles.cancelSlotBtn}
+              style={styles.cancelButton}
               onPress={() => setIsSlotModalOpen(false)}
             >
-              <Text style={styles.cancelSlotText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -532,620 +431,557 @@ export default function WorkerDashboard() {
   );
 }
 
-const MenuItem = ({
+function QuickAction({
+  compact = false,
   icon,
   title,
-  subTitle,
+  subtitle,
   onPress,
 }: {
-  icon: any;
+  compact?: boolean;
+  icon: React.ReactNode;
   title: string;
-  subTitle?: string;
+  subtitle: string;
   onPress?: () => void;
-}) => (
-  <TouchableOpacity
-    style={styles.menuItem}
-    onPress={onPress}
-    activeOpacity={0.85}
-  >
-    <View style={styles.menuIcon}>{icon}</View>
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={onPress ? 0.85 : 1}
+      onPress={onPress}
+      style={[styles.quickActionCard, compact && styles.quickActionCardCompact]}
+    >
+      <View style={[styles.quickActionIcon, compact && styles.quickActionIconCompact]}>
+        {icon}
+      </View>
+      <Text style={[styles.quickActionTitle, compact && styles.quickActionTitleCompact]}>
+        {title}
+      </Text>
+      <View style={[styles.quickActionFooter, compact && styles.quickActionFooterCompact]}>
+        <Text
+          numberOfLines={1}
+          style={[styles.quickActionSubtitle, compact && styles.quickActionSubtitleCompact]}
+        >
+          {subtitle}
+        </Text>
+        <ChevronRight color="#009A56" size={compact ? 17 : 22} strokeWidth={2.5} />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
-    <View style={{ flex: 1 }}>
-      <Text style={styles.menuItemText}>{title}</Text>
-      {subTitle ? <Text style={styles.menuItemSub}>{subTitle}</Text> : null}
-    </View>
-
-    <ChevronRight color="#CBD5E1" size={20} />
-  </TouchableOpacity>
-);
+function BottomNavItem({
+  active = false,
+  icon,
+  label,
+  onPress,
+}: {
+  active?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onPress?: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={onPress ? 0.78 : 1}
+      onPress={onPress}
+      style={styles.bottomNavItem}
+    >
+      {icon}
+      <Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>
+        {label}
+      </Text>
+      {active ? <View style={styles.activeIndicator} /> : null}
+    </TouchableOpacity>
+  );
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
-
   loader: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
   },
-
   loaderText: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "700",
+    color: "#657080",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 12,
   },
-
-  topBg: {
-    backgroundColor: "#047857",
-    paddingBottom: 28,
-    borderBottomLeftRadius: 34,
-    borderBottomRightRadius: 34,
+  content: {
+    flex: 1,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
-
-  appBar: {
-    paddingTop: 42,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
+  contentCompact: {
+    paddingHorizontal: 16,
+    paddingTop: 9,
+    paddingBottom: 5,
+  },
+  headerRow: {
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
   },
-
-  logo: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#FFFFFF",
+  headerRowCompact: {
+    minHeight: 31,
   },
-
-  logoSub: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#A7F3D0",
-    marginTop: 2,
-  },
-
-  logoutBtn: {
-    width: 43,
-    height: 43,
-    borderRadius: 15,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  greetingBox: {
-    marginHorizontal: 18,
-    backgroundColor: "rgba(255,255,255,0.13)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    borderRadius: 26,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  avatarCircle: {
-    width: 62,
-    height: 62,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-
-  avatarText: {
-    fontSize: 27,
-    fontWeight: "900",
-    color: "#047857",
-  },
-
-  greetingSmall: {
-    fontSize: 12,
-    color: "#D1FAE5",
-    fontWeight: "800",
-  },
-
-  workerName: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#FFFFFF",
-    marginTop: 2,
-  },
-
-  idRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 7,
-  },
-
-  workerId: {
-    fontSize: 11,
-    color: "#A7F3D0",
-    fontWeight: "800",
-  },
-
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#A7F3D0",
-    marginHorizontal: 7,
-  },
-
-  scoreText: {
-    color: "#FDE68A",
-    fontSize: 12,
-    fontWeight: "900",
-    marginLeft: 3,
-  },
-
-  levelBadge: {
-    backgroundColor: "rgba(255,255,255,0.18)",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-
-  levelText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "900",
-  },
-
-  content: {
-    paddingHorizontal: 18,
-    paddingTop: 16,
-  },
-
-  statusCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: -28,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-
-  statusIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: "#ECFDF5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-
-  statusTitle: {
+  brand: {
+    color: "#009A56",
     fontSize: 15,
     fontWeight: "900",
-    color: "#111827",
+    letterSpacing: 1.1,
   },
-
-  statusSub: {
-    fontSize: 12,
-    color: "#6B7280",
+  logoutButton: {
+    alignItems: "center",
+    backgroundColor: "#F4F7F5",
+    borderRadius: 20,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  greeting: {
+    color: "#111B2B",
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -1.15,
+    lineHeight: 41,
+  },
+  greetingCompact: {
+    fontSize: 27,
+    letterSpacing: -0.8,
+    lineHeight: 32,
+  },
+  greetingName: {
+    color: "#009A56",
+  },
+  dateText: {
+    color: "#687282",
+    fontSize: 18,
+    fontWeight: "500",
+    marginTop: 5,
+  },
+  dateTextCompact: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  statusStrip: {
+    alignItems: "center",
+    backgroundColor: "#F3F8F6",
+    borderRadius: 22,
+    flexDirection: "row",
+    paddingHorizontal: 22,
+    paddingVertical: 21,
+  },
+  statusStripCompact: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  statusDot: {
+    backgroundColor: "#009A56",
+    borderRadius: 8,
+    height: 12,
+    marginRight: 12,
+    width: 12,
+  },
+  statusLabel: {
+    color: "#009A56",
+    fontSize: 16,
+    fontWeight: "800",
+    marginRight: 12,
+  },
+  statusValue: {
+    color: "#121928",
+    fontSize: 16,
     fontWeight: "600",
-    marginTop: 3,
   },
-
-  availabilitySection: {
-    marginBottom: 18,
+  fullDayCard: {
+    backgroundColor: "#009A56",
+    borderRadius: 27,
+    flexDirection: "row",
+    minHeight: 340,
+    overflow: "hidden",
+    padding: 26,
   },
-
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#6B7280",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+  fullDayCardCompact: {
+    borderRadius: 20,
+    height: 158,
+    minHeight: 0,
+    padding: 16,
+  },
+  fullDayGlowLarge: {
+    backgroundColor: "rgba(5, 112, 66, 0.44)",
+    borderRadius: 200,
+    bottom: -175,
+    height: 390,
+    position: "absolute",
+    right: -134,
+    width: 390,
+  },
+  fullDayGlowSmall: {
+    backgroundColor: "rgba(97, 218, 152, 0.14)",
+    borderRadius: 130,
+    height: 260,
+    position: "absolute",
+    right: -56,
+    top: -105,
+    width: 260,
+  },
+  fullDayTextSide: {
+    alignSelf: "center",
+    flex: 1,
+    paddingBottom: 12,
+    zIndex: 1,
+  },
+  fullDayTextSideCompact: {
+    flex: 1,
+    paddingBottom: 0,
+  },
+  fullDayPrompt: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "500",
+    lineHeight: 23,
+    marginBottom: 25,
+  },
+  fullDayPromptCompact: {
+    fontSize: 12,
+    lineHeight: 16,
     marginBottom: 10,
   },
-
-  fullDayButton: {
-    backgroundColor: "#10B981",
-    borderRadius: 26,
-    minHeight: 112,
-    overflow: "hidden",
-    position: "relative",
-    justifyContent: "center",
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.24,
-    shadowRadius: 18,
-    elevation: 6,
-  },
-
-  fullDayButtonHolding: {
-    backgroundColor: "#059669",
-  },
-
-  fullDayProgressOverlay: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255,255,255,0.13)",
-  },
-
-  fullDayContent: {
-    padding: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    zIndex: 2,
-  },
-
-  fullDayIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.22)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-
   fullDayTitle: {
     color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "900",
-  },
-
-  fullDaySub: {
-    color: "#ECFDF5",
-    fontSize: 14,
+    fontSize: 35,
     fontWeight: "800",
+    letterSpacing: -0.9,
+    lineHeight: 42,
+  },
+  fullDayTitleCompact: {
+    fontSize: 23,
+    letterSpacing: -0.5,
+    lineHeight: 27,
+  },
+  fullDaySubtitle: {
+    color: "#E5FFF1",
+    fontSize: 16,
+    fontWeight: "500",
+    lineHeight: 23,
+    marginTop: 31,
+  },
+  fullDaySubtitleCompact: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 12,
+  },
+  holdCircle: {
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    borderColor: "rgba(217, 255, 233, 0.5)",
+    borderRadius: 105,
+    borderWidth: 13,
+    height: 188,
+    justifyContent: "center",
+    marginLeft: 6,
+    width: 188,
+    zIndex: 1,
+  },
+  holdCircleCompact: {
+    borderRadius: 70,
+    borderWidth: 7,
+    height: 120,
+    marginLeft: 6,
+    width: 120,
+  },
+  holdCircleActive: {
+    borderColor: "#FFFFFF",
+  },
+  holdCircleInner: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  holdCircleText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
+  holdCircleTextCompact: {
+    fontSize: 12,
+    lineHeight: 15,
+  },
+  someHoursCard: {
+    alignItems: "center",
+    backgroundColor: "#F3F9F6",
+    borderRadius: 27,
+    flexDirection: "row",
+    paddingHorizontal: 25,
+    paddingVertical: 29,
+  },
+  someHoursCardCompact: {
+    borderRadius: 18,
+    paddingHorizontal: 17,
+    paddingVertical: 13,
+  },
+  lightIconCircle: {
+    alignItems: "center",
+    backgroundColor: "#DFF4E9",
+    borderRadius: 37,
+    height: 74,
+    justifyContent: "center",
+    width: 74,
+  },
+  lightIconCircleCompact: {
+    borderRadius: 25,
+    height: 50,
+    width: 50,
+  },
+  someHoursCopy: {
+    flex: 1,
+    marginLeft: 22,
+  },
+  someHoursTitle: {
+    color: "#101928",
+    fontSize: 25,
+    fontWeight: "800",
+    letterSpacing: -0.55,
+  },
+  someHoursTitleCompact: {
+    fontSize: 19,
+    letterSpacing: -0.35,
+  },
+  someHoursSubtitle: {
+    color: "#6F7888",
+    fontSize: 17,
+    fontWeight: "500",
+    marginTop: 6,
+  },
+  someHoursSubtitleCompact: {
+    fontSize: 13,
     marginTop: 2,
   },
-
-  fullDayHint: {
-    color: "#D1FAE5",
-    fontSize: 12,
-    fontWeight: "700",
-    marginTop: 5,
-  },
-
-  holdBadge: {
-    backgroundColor: "rgba(0,0,0,0.17)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-
-  holdBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "900",
-  },
-
-  progressTrack: {
-    height: 7,
-    backgroundColor: "rgba(255,255,255,0.18)",
-  },
-
-  progressFill: {
-    height: 7,
-    backgroundColor: "#A7F3D0",
-  },
-
-  someHoursButton: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 16,
-    marginTop: 13,
+  quickActionRow: {
     flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#D1FAE5",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    gap: 16,
   },
-
-  someHoursIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 19,
-    backgroundColor: "#ECFDF5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 13,
-  },
-
-  someHoursTitle: {
-    color: "#111827",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-
-  someHoursSub: {
-    color: "#6B7280",
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 3,
-  },
-
-  selectPill: {
-    backgroundColor: "#ECFDF5",
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-
-  selectPillText: {
-    color: "#047857",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-
-  moneyRow: {
-    flexDirection: "row",
+  quickActionRowCompact: {
     gap: 12,
-    marginBottom: 14,
   },
-
-  earningCard: {
-    flex: 1.5,
-    backgroundColor: "#111827",
-    borderRadius: 26,
-    padding: 17,
+  quickActionCard: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#EDF0EF",
+    borderRadius: 27,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 220,
+    padding: 21,
+    shadowColor: "#263448",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 13,
+    elevation: 3,
   },
-
-  cardTopRow: {
-    flexDirection: "row",
+  quickActionCardCompact: {
+    borderRadius: 18,
+    minHeight: 106,
+    padding: 13,
+  },
+  quickActionIcon: {
     alignItems: "center",
-    marginBottom: 12,
-  },
-
-  walletIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 15,
-    backgroundColor: "#10B981",
+    backgroundColor: "#E6F7EE",
+    borderRadius: 36,
+    height: 72,
     justifyContent: "center",
+    width: 72,
+  },
+  quickActionIconCompact: {
+    borderRadius: 25,
+    height: 50,
+    width: 50,
+  },
+  quickActionTitle: {
+    color: "#111A2A",
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    marginTop: 19,
+  },
+  quickActionTitleCompact: {
+    fontSize: 18,
+    letterSpacing: -0.3,
+    marginTop: 8,
+  },
+  quickActionFooter: {
     alignItems: "center",
-    marginRight: 10,
+    flexDirection: "row",
+    marginTop: 7,
   },
-
-  moneyLabel: {
-    color: "#CBD5E1",
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
+  quickActionFooterCompact: {
+    marginTop: 2,
   },
-
-  moneyAmount: {
-    color: "#FFFFFF",
-    fontSize: 31,
-    fontWeight: "900",
+  quickActionSubtitle: {
+    color: "#6A7485",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
   },
-
-  moneySub: {
-    color: "#94A3B8",
-    fontSize: 12,
-    fontWeight: "700",
+  quickActionSubtitleCompact: {
+    fontSize: 11,
+  },
+  todayCard: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#EDF0EF",
+    borderRadius: 27,
+    borderWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: 25,
+    paddingVertical: 28,
+    shadowColor: "#263448",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 13,
+    elevation: 3,
+  },
+  todayCardCompact: {
+    borderRadius: 18,
+    paddingHorizontal: 17,
+    paddingVertical: 12,
+  },
+  todayTitle: {
+    color: "#111A2A",
+    fontSize: 25,
+    fontWeight: "800",
+    letterSpacing: -0.55,
+    marginLeft: 22,
+  },
+  todayTitleCompact: {
+    fontSize: 19,
+    letterSpacing: -0.3,
+    marginLeft: 14,
+  },
+  todaySubtitle: {
+    color: "#6A7485",
+    fontSize: 17,
+    fontWeight: "500",
+    marginLeft: 22,
+    marginTop: 6,
+  },
+  todaySubtitleCompact: {
+    fontSize: 13,
+    marginLeft: 14,
+    marginTop: 2,
+  },
+  bottomNavigation: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#EEF1F0",
+    borderRadius: 24,
+    borderWidth: 1,
+    flexDirection: "row",
+    marginBottom: 4,
+    marginHorizontal: 9,
+    paddingBottom: 5,
+    paddingTop: 8,
+    shadowColor: "#243144",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 11,
+    elevation: 5,
+  },
+  bottomNavItem: {
+    alignItems: "center",
+    flex: 1,
+    minHeight: 50,
+  },
+  bottomNavLabel: {
+    color: "#5B6472",
+    fontSize: 11,
+    fontWeight: "600",
     marginTop: 4,
   },
-
-  quickWalletCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 26,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    justifyContent: "center",
-    alignItems: "center",
+  bottomNavLabelActive: {
+    color: "#009A56",
+    fontWeight: "800",
   },
-
-  quickWalletIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: "#ECFDF5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 9,
+  activeIndicator: {
+    backgroundColor: "#009A56",
+    borderRadius: 5,
+    bottom: -5,
+    height: 4,
+    position: "absolute",
+    width: 46,
   },
-
-  quickWalletTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#111827",
-  },
-
-  quickWalletSub: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "700",
-    marginTop: 3,
-  },
-
-  insuranceCard: {
-    backgroundColor: "#047857",
-    borderRadius: 24,
-    padding: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-
-  insuranceIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 13,
-  },
-
-  insuranceTitle: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "900",
-  },
-
-  insuranceSub: {
-    color: "#D1FAE5",
-    fontSize: 12,
-    fontWeight: "700",
-    marginTop: 3,
-  },
-
-  menuSection: {
-    marginTop: 2,
-  },
-
-  menuList: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 10,
-  },
-
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderColor: "#F3F4F6",
-  },
-
-  menuIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-
-  menuItemText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#111827",
-  },
-
-  menuItemSub: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginTop: 2,
-  },
-
   modalOverlay: {
+    backgroundColor: "rgba(7, 18, 30, 0.43)",
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
-
   slotModal: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 20,
-    paddingBottom: 28,
+    borderTopLeftRadius: 31,
+    borderTopRightRadius: 31,
+    padding: 23,
+    paddingBottom: 34,
   },
-
+  modalHandle: {
+    alignSelf: "center",
+    backgroundColor: "#DCE3E0",
+    borderRadius: 3,
+    height: 5,
+    marginBottom: 22,
+    width: 49,
+  },
   slotModalTitle: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: "#111827",
+    color: "#111A2A",
+    fontSize: 23,
+    fontWeight: "800",
   },
-
-  slotModalSub: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginTop: 5,
-    marginBottom: 16,
+  slotModalSubtitle: {
+    color: "#6A7485",
+    fontSize: 15,
+    lineHeight: 21,
+    marginBottom: 20,
+    marginTop: 6,
   },
-
   slotOption: {
-    backgroundColor: "#ECFDF5",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: "#F2F9F5",
+    borderColor: "#D9F0E4",
+    borderRadius: 19,
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 11,
+    paddingHorizontal: 18,
+    paddingVertical: 17,
   },
-
-  slotOptionDisabled: {
-    backgroundColor: "#F3F4F6",
-    borderColor: "#E5E7EB",
-  },
-
   slotOptionTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#047857",
+    color: "#087C49",
+    fontSize: 17,
+    fontWeight: "800",
   },
-
-  slotOptionTitleDisabled: {
-    color: "#9CA3AF",
-  },
-
-  slotOptionSub: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#059669",
-    marginTop: 3,
-  },
-
-  slotOptionSubDisabled: {
-    color: "#9CA3AF",
-  },
-
-  slotOptionAction: {
-    fontSize: 12,
-    fontWeight: "900",
-    color: "#047857",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-
-  slotOptionActionDisabled: {
-    color: "#9CA3AF",
-  },
-
-  cancelSlotBtn: {
-    backgroundColor: "#F3F4F6",
-    paddingVertical: 15,
-    borderRadius: 18,
-    alignItems: "center",
+  slotOptionSubtitle: {
+    color: "#5C7D6B",
+    fontSize: 13,
     marginTop: 4,
   },
-
-  cancelSlotText: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "900",
+  cancelButton: {
+    alignItems: "center",
+    backgroundColor: "#F3F5F4",
+    borderRadius: 18,
+    marginTop: 5,
+    paddingVertical: 15,
+  },
+  cancelButtonText: {
+    color: "#424B59",
+    fontSize: 15,
+    fontWeight: "800",
   },
 });
