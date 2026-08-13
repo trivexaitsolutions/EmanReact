@@ -15,14 +15,36 @@ import {
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
+const ENABLE_WORKER_COMPLETE_DUTY = false;
+const MITRA_HOLD_DURATION_MS = 3000;
+
 export default function DutyInProgress() {
   const [dutyData, setDutyData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
+  const [isHoldingMitra, setIsHoldingMitra] = useState(false);
+  const [mitraHoldProgress, setMitraHoldProgress] = useState(0);
+  const [isConnectingMitra, setIsConnectingMitra] = useState(false);
 
   const bookingIdRef = useRef<number | null>(null);
   const isRedirectingRef = useRef(false);
   const isRequestRunningRef = useRef(false);
+  const cancellationRequestedRef = useRef(false);
+  const mitraHoldCompletedRef = useRef(false);
+  const mitraHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mitraHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearMitraHoldTimers = () => {
+    if (mitraHoldTimeoutRef.current) {
+      clearTimeout(mitraHoldTimeoutRef.current);
+      mitraHoldTimeoutRef.current = null;
+    }
+
+    if (mitraHoldIntervalRef.current) {
+      clearInterval(mitraHoldIntervalRef.current);
+      mitraHoldIntervalRef.current = null;
+    }
+  };
 
   useEffect(() => {
     fetchCurrentDuty(false);
@@ -32,7 +54,12 @@ export default function DutyInProgress() {
       fetchCurrentDuty(true);
     }, 3000);
 
-    return () => clearInterval(statusInterval);
+    return () => {
+      clearInterval(statusInterval);
+      clearMitraHoldTimers();
+    };
+    // Screen lifetime poller; request guards prevent overlapping calls.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openClientRating = (bookingId: number) => {
@@ -72,7 +99,11 @@ export default function DutyInProgress() {
   };
 
   const fetchCurrentDuty = async (silent = false) => {
-    if (isRequestRunningRef.current || isRedirectingRef.current) {
+    if (
+      isRequestRunningRef.current ||
+      isRedirectingRef.current ||
+      cancellationRequestedRef.current
+    ) {
       return;
     }
 
@@ -212,6 +243,110 @@ export default function DutyInProgress() {
     ]);
   };
 
+  const connectMitraAndCancelDuty = async () => {
+    if (cancellationRequestedRef.current || isConnectingMitra) return;
+
+    try {
+      cancellationRequestedRef.current = true;
+      setIsConnectingMitra(true);
+
+      if (!dutyData?.id) {
+        cancellationRequestedRef.current = false;
+        Alert.alert("Error", "Booking ID missing hai.");
+        return;
+      }
+
+      const session = await AsyncStorage.getItem("workerSession");
+      if (!session) {
+        cancellationRequestedRef.current = false;
+        Alert.alert("Session Error", "Please login again.");
+        return;
+      }
+
+      const parsedWorker = JSON.parse(session);
+      const response = await axios.post(`${API_URL}/user/conflicts/create`, {
+        bookingId: dutyData.id,
+        workerId: parsedWorker.id,
+        raisedBy: "WORKER",
+        reason: "Worker requested Mitra assistance",
+        description: "Direct request raised during an active duty.",
+        continueWork: false,
+        requestedAction: "CANCEL_DUTY",
+      });
+
+      if (!response.data.success) {
+        cancellationRequestedRef.current = false;
+        Alert.alert(
+          "Failed",
+          response.data.message || "Mitra request create nahi ho payi.",
+        );
+        return;
+      }
+
+      Alert.alert(
+        "Mitra Connected",
+        "Duty cancel ho gayi hai aur Mitra ko request bhej di gayi hai.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              if (isRedirectingRef.current) return;
+              isRedirectingRef.current = true;
+              router.replace("/worker/dashboard");
+            },
+          },
+        ],
+      );
+    } catch (error: any) {
+      cancellationRequestedRef.current = false;
+      console.log("Worker Mitra Request Error:", error?.response?.data || error);
+      Alert.alert(
+        "Server Error",
+        error?.response?.data?.message || "Mitra se connect nahi ho paya.",
+      );
+    } finally {
+      setIsConnectingMitra(false);
+      setIsHoldingMitra(false);
+      setMitraHoldProgress(0);
+      mitraHoldCompletedRef.current = false;
+    }
+  };
+
+  const startMitraHold = () => {
+    if (cancellationRequestedRef.current || isConnectingMitra || isHoldingMitra) {
+      return;
+    }
+
+    clearMitraHoldTimers();
+    mitraHoldCompletedRef.current = false;
+    setIsHoldingMitra(true);
+    setMitraHoldProgress(0);
+
+    const holdStartedAt = Date.now();
+    mitraHoldIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - holdStartedAt;
+      setMitraHoldProgress(
+        Math.min(100, (elapsed / MITRA_HOLD_DURATION_MS) * 100),
+      );
+    }, 50);
+
+    mitraHoldTimeoutRef.current = setTimeout(() => {
+      mitraHoldCompletedRef.current = true;
+      clearMitraHoldTimers();
+      setMitraHoldProgress(100);
+      setIsHoldingMitra(false);
+      void connectMitraAndCancelDuty();
+    }, MITRA_HOLD_DURATION_MS);
+  };
+
+  const cancelMitraHold = () => {
+    if (mitraHoldCompletedRef.current) return;
+
+    clearMitraHoldTimers();
+    setIsHoldingMitra(false);
+    setMitraHoldProgress(0);
+  };
+
   if (isLoading) {
     return <ActivityIndicator size="large" color="#000" style={{ flex: 1 }} />;
   }
@@ -252,12 +387,43 @@ export default function DutyInProgress() {
         <View style={{ flex: 1 }} />
 
         <TouchableOpacity
-          style={styles.completeBtn}
-          onPress={handleCompleteDuty}
+          style={styles.mitraButton}
+          activeOpacity={0.9}
+          disabled={isConnectingMitra || cancellationRequestedRef.current}
+          onPressIn={startMitraHold}
+          onPressOut={cancelMitraHold}
         >
-          <CheckCircle color="#fff" size={24} style={{ marginRight: 10 }} />
-          <Text style={styles.completeBtnText}>MARK AS COMPLETE</Text>
+          <View
+            pointerEvents="none"
+            style={[
+              styles.mitraButtonProgress,
+              { width: `${mitraHoldProgress}%` as `${number}%` },
+            ]}
+          />
+          <View style={styles.mitraButtonContent}>
+            {isConnectingMitra ? (
+              <ActivityIndicator color="#B91C1C" size="small" />
+            ) : null}
+            <Text style={styles.mitraButtonText}>Any issue, Connect Mitra</Text>
+            <Text style={styles.mitraButtonHint}>
+              {isConnectingMitra
+                ? "Sending request..."
+                : isHoldingMitra
+                  ? "Keep holding..."
+                  : "Hold for 3 seconds"}
+            </Text>
+          </View>
         </TouchableOpacity>
+
+        {ENABLE_WORKER_COMPLETE_DUTY && (
+          <TouchableOpacity
+            style={styles.completeBtn}
+            onPress={handleCompleteDuty}
+          >
+            <CheckCircle color="#fff" size={24} style={{ marginRight: 10 }} />
+            <Text style={styles.completeBtnText}>MARK AS COMPLETE</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -322,6 +488,45 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
 
+  mitraButton: {
+    position: "relative",
+    overflow: "hidden",
+    width: "100%",
+    minHeight: 68,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mitraButtonProgress: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "#FECACA",
+  },
+  mitraButtonContent: {
+    zIndex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  mitraButtonText: {
+    color: "#B91C1C",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+  },
+  mitraButtonHint: {
+    color: "#991B1B",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+
   completeBtn: {
     backgroundColor: "#000",
     width: "100%",
@@ -330,6 +535,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 12,
   },
   completeBtnText: {
     color: "#fff",

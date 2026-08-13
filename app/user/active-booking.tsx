@@ -1,8 +1,9 @@
 // app/user/active-booking.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, Stack } from "expo-router";
-import { CheckCircle2, Phone, XCircle } from "lucide-react-native";
+import { CheckCircle2, Phone, QrCode, XCircle } from "lucide-react-native";
 // import React, { useEffect, useState } from "react";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -18,7 +19,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import QRCode from "react-native-qrcode-svg";
 import { API_URL } from "../../constants/api";
 
 const clientIssueReasons = [
@@ -33,6 +33,10 @@ const clientIssueReasons = [
 export default function ActiveBooking() {
   const [booking, setBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [isVerifyingWorker, setIsVerifyingWorker] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [selectedIssueReason, setSelectedIssueReason] = useState("");
@@ -164,6 +168,81 @@ export default function ActiveBooking() {
 
   const handleCall = (phoneNumber: string) => {
     Linking.openURL(`tel:${phoneNumber}`);
+  };
+
+  const openWorkerScanner = async () => {
+    if (!cameraPermission?.granted) {
+      const { granted } = await requestCameraPermission();
+      if (!granted) {
+        Alert.alert(
+          "Camera Permission Required",
+          "Worker ka QR scan karne ke liye camera permission allow karein.",
+        );
+        return;
+      }
+    }
+
+    setHasScanned(false);
+    setShowScanner(true);
+  };
+
+  const handleWorkerQrScanned = async ({ data }: { data: string }) => {
+    if (hasScanned || isVerifyingWorker) return;
+
+    setHasScanned(true);
+    setIsVerifyingWorker(true);
+
+    try {
+      const qrData = JSON.parse(data);
+      const scannedBookingId = Number(qrData?.bookingId);
+      const scannedWorkerId = Number(qrData?.workerId);
+
+      if (
+        qrData?.action !== "VERIFY_WORKER_ARRIVAL" ||
+        scannedBookingId !== Number(booking.id) ||
+        !Number.isInteger(scannedWorkerId)
+      ) {
+        throw new Error("INVALID_WORKER_QR");
+      }
+
+      const response = await axios.post(`${API_URL}/user/worker/verify-qr`, {
+        bookingId: scannedBookingId,
+        workerId: scannedWorkerId,
+        customerId: Number(booking.customerId),
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || "QR verification failed");
+      }
+
+      setShowScanner(false);
+      await fetchActiveBooking();
+
+      Alert.alert(
+        "Worker Verified",
+        response.data.message || "Worker arrival successfully verified.",
+      );
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        (error?.message === "INVALID_WORKER_QR"
+          ? "Ye is booking ke worker ka valid QR nahi hai."
+          : "Worker QR verify nahi ho paya.");
+
+      Alert.alert("Invalid QR", message, [
+        {
+          text: "Scan Again",
+          onPress: () => setHasScanned(false),
+        },
+        {
+          text: "Close",
+          style: "cancel",
+          onPress: () => setShowScanner(false),
+        },
+      ]);
+    } finally {
+      setIsVerifyingWorker(false);
+    }
   };
 
   const toggleWorkerSelection = (workerId: number) => {
@@ -337,12 +416,6 @@ export default function ActiveBooking() {
     );
   }
 
-  // QR Code ke andar ka data (Worker scan karke verify karega)
-  const qrData = JSON.stringify({
-    bookingId: booking.id,
-    action: "VERIFY_ARRIVAL",
-  });
-
   let cancelledList: any[] = [];
 
   try {
@@ -366,6 +439,42 @@ export default function ActiveBooking() {
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+
+      {showScanner && (
+        <View style={styles.customerScannerContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            onBarcodeScanned={
+              hasScanned ? undefined : handleWorkerQrScanned
+            }
+          />
+          <View style={styles.customerScannerOverlay}>
+            <Text style={styles.customerScannerTitle}>Scan Worker QR</Text>
+            <Text style={styles.customerScannerDescription}>
+              Worker ki New Duty screen par dikh raha QR is frame mein layen.
+            </Text>
+            <View style={styles.customerScannerFrame} />
+
+            {isVerifyingWorker ? (
+              <View style={styles.customerScannerLoading}>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+                <Text style={styles.customerScannerLoadingText}>
+                  Verifying worker...
+                </Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={styles.closeCustomerScanner}
+              onPress={() => setShowScanner(false)}
+            >
+              <XCircle color="#FFFFFF" size={40} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Live Tracking</Text>
@@ -561,18 +670,18 @@ export default function ActiveBooking() {
           <View style={styles.qrCard}>
             <Text style={styles.qrTitle}>Worker Verification</Text>
             <Text style={styles.qrDesc}>
-              Show this QR code to the workers when they arrive at your location
-              to start the duty.
+              Worker location par pahunchne ke baad uski New Duty screen se QR
+              scan karke arrival verify karein.
             </Text>
 
-            <View style={styles.qrWrapper}>
-              <QRCode
-                value={qrData}
-                size={180}
-                color="#000"
-                backgroundColor="#fff"
-              />
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.scanWorkerQrButton}
+              onPress={openWorkerScanner}
+            >
+              <QrCode color="#FFFFFF" size={24} />
+              <Text style={styles.scanWorkerQrButtonText}>SCAN WORKER QR</Text>
+            </TouchableOpacity>
             <Text style={styles.bookingIdText}>Booking ID: #{booking.id}</Text>
           </View>
         )}
@@ -902,6 +1011,24 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     paddingHorizontal: 10,
   },
+  scanWorkerQrButton: {
+    alignItems: "center",
+    backgroundColor: "#10B981",
+    borderRadius: 16,
+    flexDirection: "row",
+    justifyContent: "center",
+    marginVertical: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 17,
+    width: "100%",
+  },
+  scanWorkerQrButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.7,
+    marginLeft: 10,
+  },
   qrWrapper: {
     padding: 15,
     backgroundColor: "#fff",
@@ -918,6 +1045,62 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#9CA3AF",
     letterSpacing: 1,
+  },
+
+  customerScannerContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000000",
+    elevation: 30,
+    zIndex: 100,
+  },
+  customerScannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.58)",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  customerScannerTitle: {
+    color: "#FFFFFF",
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  customerScannerDescription: {
+    color: "#E5E7EB",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+    marginBottom: 24,
+    marginTop: 8,
+    maxWidth: 310,
+    textAlign: "center",
+  },
+  customerScannerFrame: {
+    backgroundColor: "transparent",
+    borderColor: "#10B981",
+    borderRadius: 24,
+    borderWidth: 4,
+    height: 250,
+    width: 250,
+  },
+  customerScannerLoading: {
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 22,
+    flexDirection: "row",
+    marginTop: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  customerScannerLoadingText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+    marginLeft: 9,
+  },
+  closeCustomerScanner: {
+    bottom: 42,
+    position: "absolute",
   },
 
   // NEW STYLES

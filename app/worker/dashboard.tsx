@@ -132,20 +132,6 @@ export default function WorkerDashboard() {
 
       if (!response.data.success) return;
 
-      try {
-        const dutyResponse = await axios.get(
-          `${API_URL}/user/worker/current-duty/${parsedData.id}`,
-        );
-
-        if (dutyResponse.data.success && dutyResponse.data.duty) {
-          Alert.alert("Duty Active", "Aapka ek kaam pehle se chal raha hai!");
-          router.replace("/worker/active-duty");
-          return;
-        }
-      } catch (dutyError) {
-        console.log("Duty check error", dutyError);
-      }
-
       Alert.alert(
         "You are Online",
         response.data.message || "Aap pool mein add ho gaye hain.",

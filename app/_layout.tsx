@@ -6,6 +6,8 @@ import { useEffect } from "react";
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -76,6 +78,12 @@ export default function RootLayout() {
       (notification) => {
         const data = notification.request.content.data;
         console.log("Notification received:", data);
+
+        // Availability screen already polls for a newly paid duty. Auto-pushing
+        // here as well could mount a second Active Duty screen and leave its
+        // poller alive behind the visible screen.
+        if (data?.action === "OPEN_ACTIVE_DUTY") return;
+
         handleNotificationData(data);
       },
     );

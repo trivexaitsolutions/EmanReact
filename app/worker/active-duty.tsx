@@ -1,65 +1,93 @@
 // app/worker/active-duty.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { router, Stack } from "expo-router";
-import { CheckCircle2, MapPin, QrCode, XCircle } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import { router, Stack, useFocusEffect } from "expo-router";
+import { CheckCircle2, MapPin } from "lucide-react-native";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { API_URL } from "../../constants/api";
 
-const workerIssueReasons = [
-  "Client location par nahi hai",
-  "Client phone receive nahi kar raha",
-  "Wrong location",
-  "Unsafe work condition",
-  "Work different hai",
-  "Payment issue",
-  "Other",
-];
+const MITRA_HOLD_DURATION_MS = 3000;
 
 export default function ActiveDuty() {
   const [dutyData, setDutyData] = useState<any>(null);
+  const [workerSession, setWorkerSession] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [scanned, setScanned] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
-  const [showIssueModal, setShowIssueModal] = useState(false);
-  const [selectedIssueReason, setSelectedIssueReason] = useState("");
-  const [otherIssueText, setOtherIssueText] = useState("");
-  const [continueWork, setContinueWork] = useState(true);
+  const [isHoldingMitra, setIsHoldingMitra] = useState(false);
+  const [mitraHoldProgress, setMitraHoldProgress] = useState(0);
+  const [isConnectingMitra, setIsConnectingMitra] = useState(false);
 
-  useEffect(() => {
-    fetchCurrentDuty();
+  const mitraHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mitraHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mitraHoldCompletedRef = useRef(false);
+  const cancellationRequestedRef = useRef(false);
+  const navigationStartedRef = useRef(false);
+
+  const clearMitraHoldTimers = useCallback(() => {
+    if (mitraHoldTimeoutRef.current) {
+      clearTimeout(mitraHoldTimeoutRef.current);
+      mitraHoldTimeoutRef.current = null;
+    }
+
+    if (mitraHoldIntervalRef.current) {
+      clearInterval(mitraHoldIntervalRef.current);
+      mitraHoldIntervalRef.current = null;
+    }
   }, []);
 
-  const fetchCurrentDuty = async () => {
+  const fetchCurrentDuty = useCallback(async () => {
+    if (cancellationRequestedRef.current) return;
+
     try {
       const session = await AsyncStorage.getItem("workerSession");
-      if (session) {
-        const parsedWorker = JSON.parse(session);
-        // Note: Backend me hume ek api banani hogi jo worker ki ASSIGNED duty laye
+      if (!session) {
+        router.replace("/");
+        return;
+      }
 
-        // Puraana: `${API_URL}/worker/current-duty/${parsedWorker.id}`
-        const response = await axios.get(
-          `${API_URL}/user/worker/current-duty/${parsedWorker.id}`,
-        );
-        if (response.data.success) {
-          setDutyData(response.data.duty);
-        } else {
-          // Agar koi active duty nahi hai toh dashboard bhej do
+      const parsedWorker = JSON.parse(session);
+      setWorkerSession(parsedWorker);
+
+      const response = await axios.get(
+        `${API_URL}/user/worker/current-duty/${parsedWorker.id}`,
+      );
+
+      // A cancellation may complete while this request is still in flight.
+      // In that case this old response must not trigger another navigation.
+      if (cancellationRequestedRef.current) return;
+
+      if (!response.data.success || !response.data.duty) {
+        if (!navigationStartedRef.current) {
+          navigationStartedRef.current = true;
           router.replace("/worker/dashboard");
+        }
+        return;
+      }
+
+      const latestDuty = response.data.duty;
+      setDutyData(latestDuty);
+
+      let arrivedWorkerIds: number[] = [];
+      try {
+        arrivedWorkerIds = JSON.parse(latestDuty.arrivedWorkerIds || "[]");
+      } catch {
+        arrivedWorkerIds = [];
+      }
+
+      if (arrivedWorkerIds.map(Number).includes(Number(parsedWorker.id))) {
+        if (!navigationStartedRef.current) {
+          navigationStartedRef.current = true;
+          router.replace("/worker/duty-in-progress");
         }
       }
     } catch (error) {
@@ -67,363 +95,220 @@ export default function ActiveDuty() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleBarCodeScanned = async ({ type, data }: any) => {
-    setScanned(true);
-    setShowScanner(false);
+  useFocusEffect(
+    useCallback(() => {
+      navigationStartedRef.current = false;
+      void fetchCurrentDuty();
 
-    try {
-      const qrData = JSON.parse(data);
-      // Agar Customer ke QR me wahi bookingId hai jo worker ko assign hui hai
-      // console.log("Scanned QR Data:", qrData);
-      // console.l("Current Duty Data:", dutyData);
-      if (
-        // qrData.bookingId === dutyData.id &&
-        qrData.action === "VERIFY_ARRIVAL"
-      ) {
-        const session = await AsyncStorage.getItem("workerSession");
-        let parsedWorker;
-        if (session) {
-          parsedWorker = JSON.parse(session);
-        } else {
-          parsedWorker = null;
-        }
-        // Backend ko API call karenge 'status' update karne ke liye
-        // Puraana: `${API_URL}/worker/verify-qr`
-        const verifyRes = await axios.post(`${API_URL}/user/worker/verify-qr`, {
-          bookingId: dutyData.id,
-          workerId: parsedWorker.id, // Naya: Apna khud ka ID bhejo
-        });
+      const dutyPoller = setInterval(() => {
+        void fetchCurrentDuty();
+      }, 3000);
 
-        console.log("verifyRes.data", verifyRes.data);
+      return () => {
+        clearInterval(dutyPoller);
+        clearMitraHoldTimers();
+      };
+    }, [clearMitraHoldTimers, fetchCurrentDuty]),
+  );
 
-        if (verifyRes.data.success) {
-          // Alert.alert(
-          //   "Duty Started!",
-          //   "Aapka kaam shuru ho gaya hai. Best of luck!",
-          // );
-          // Yahan se worker ko 'Work In Progress' screen par bhej sakte hain
-          router.replace("/worker/duty-in-progress");
-        }
-      } else {
-        Alert.alert("Invalid QR", "Yeh QR code is booking ka nahi hai 234.");
-      }
-    } catch (e) {
-      console.log(e);
-      Alert.alert("Error", "Sahi QR code scan karein.");
-    }
-  };
-
-  const openCamera = async () => {
-    if (!permission?.granted) {
-      const { granted } = await requestPermission();
-      if (!granted) {
-        Alert.alert(
-          "Permission Required",
-          "QR scan karne ke liye camera permission zaroori hai.",
-        );
-        return;
-      }
-    }
-    setShowScanner(true);
-    setScanned(false);
-  };
-
-  const handleSubmitWorkerIssue = async () => {
-    if (!selectedIssueReason) {
-      Alert.alert("Reason Required", "Please select cancellation reason.");
-      return;
-    }
-
-    if (selectedIssueReason === "Other" && !otherIssueText.trim()) {
-      Alert.alert("Description Required", "Please describe your issue.");
-      return;
-    }
+  const connectMitraAndCancelDuty = async () => {
+    if (cancellationRequestedRef.current || isConnectingMitra) return;
 
     try {
+      cancellationRequestedRef.current = true;
+      setIsConnectingMitra(true);
+
       const session = await AsyncStorage.getItem("workerSession");
-
       if (!session) {
+        cancellationRequestedRef.current = false;
         Alert.alert("Session Error", "Please login again.");
         return;
       }
 
       const parsedWorker = JSON.parse(session);
-
-      const issuePayload = {
+      const response = await axios.post(`${API_URL}/user/conflicts/create`, {
         bookingId: dutyData.id,
         workerId: parsedWorker.id,
         raisedBy: "WORKER",
-        reason: selectedIssueReason,
-        description: selectedIssueReason === "Other" ? otherIssueText : "",
-        continueWork,
-        requestedAction: continueWork ? "CONTINUE_WORK" : "CANCEL_DUTY",
-        penaltyAmount: continueWork ? 0 : 100,
-      };
+        reason: "Worker requested Mitra assistance",
+        description: "Direct request raised through the worker app.",
+        continueWork: false,
+        requestedAction: "CANCEL_DUTY",
+      });
 
-      console.log("WORKER ISSUE PAYLOAD:", issuePayload);
-
-      const response = await axios.post(
-        `${API_URL}/user/conflicts/create`,
-        issuePayload,
-      );
-
-      if (response.data.success) {
-        setShowIssueModal(false);
-        setSelectedIssueReason("");
-        setOtherIssueText("");
-        setContinueWork(true);
-
-        if (continueWork) {
-          Alert.alert(
-            "Issue Raised",
-            "Your issue has been raised. You can continue your duty.",
-          );
-        } else {
-          Alert.alert(
-            "Duty Cancel Request Raised",
-            "Your issue has been raised. ₹100 penalty note will be reviewed by admin.",
-            [
-              {
-                text: "OK",
-                onPress: () => router.replace("/worker/available"),
-              },
-            ],
-          );
-        }
-      } else {
+      if (!response.data.success) {
+        cancellationRequestedRef.current = false;
         Alert.alert(
           "Failed",
-          response.data.message || "Issue raise nahi ho paya.",
+          response.data.message || "Mitra request create nahi ho payi.",
         );
+        return;
       }
-    } catch (error: any) {
-      console.log("Worker Issue Error:", error?.response?.data || error);
 
       Alert.alert(
-        "Server Error",
-        error?.response?.data?.message || "Server error while raising issue.",
+        "Mitra Connected",
+        "Duty cancel ho gayi hai aur Mitra ko request bhej di gayi hai.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              if (navigationStartedRef.current) return;
+              navigationStartedRef.current = true;
+              router.replace("/worker/dashboard");
+            },
+          },
+        ],
       );
+    } catch (error: any) {
+      cancellationRequestedRef.current = false;
+      console.log("Worker Mitra Request Error:", error?.response?.data || error);
+      Alert.alert(
+        "Server Error",
+        error?.response?.data?.message || "Mitra se connect nahi ho paya.",
+      );
+    } finally {
+      setIsConnectingMitra(false);
+      setIsHoldingMitra(false);
+      setMitraHoldProgress(0);
+      mitraHoldCompletedRef.current = false;
     }
   };
 
-  if (isLoading)
+  const startMitraHold = () => {
+    if (cancellationRequestedRef.current || isConnectingMitra || isHoldingMitra) {
+      return;
+    }
+
+    clearMitraHoldTimers();
+    mitraHoldCompletedRef.current = false;
+    setIsHoldingMitra(true);
+    setMitraHoldProgress(0);
+
+    const holdStartedAt = Date.now();
+    mitraHoldIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - holdStartedAt;
+      setMitraHoldProgress(
+        Math.min(100, (elapsed / MITRA_HOLD_DURATION_MS) * 100),
+      );
+    }, 50);
+
+    mitraHoldTimeoutRef.current = setTimeout(() => {
+      mitraHoldCompletedRef.current = true;
+      clearMitraHoldTimers();
+      setMitraHoldProgress(100);
+      setIsHoldingMitra(false);
+      void connectMitraAndCancelDuty();
+    }, MITRA_HOLD_DURATION_MS);
+  };
+
+  const cancelMitraHold = () => {
+    if (mitraHoldCompletedRef.current) return;
+
+    clearMitraHoldTimers();
+    setIsHoldingMitra(false);
+    setMitraHoldProgress(0);
+  };
+
+  if (isLoading) {
     return <ActivityIndicator size="large" color="#000" style={{ flex: 1 }} />;
+  }
+
   if (!dutyData) return null;
+
+  const workerQrData = JSON.stringify({
+    action: "VERIFY_WORKER_ARRIVAL",
+    bookingId: Number(dutyData.id),
+    workerId: Number(workerSession?.id),
+  });
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Full Screen Scanner Overlay */}
-      {showScanner && (
-        <View style={StyleSheet.absoluteFillObject}>
-          <CameraView
-            style={StyleSheet.absoluteFillObject}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          />
-          <View style={styles.scannerOverlay}>
-            <View style={styles.scannerBox} />
-            <Text style={styles.scannerText}>
-              Customer ka QR code is box me layen
-            </Text>
-            <TouchableOpacity
-              style={styles.closeScannerBtn}
-              onPress={() => setShowScanner(false)}
-            >
-              <XCircle color="#fff" size={40} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>New Duty Assigned</Text>
+      </View>
 
-      {!showScanner && (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>New Duty Assigned</Text>
-          </View>
-
-          <View style={styles.content}>
-            <View style={styles.alertBox}>
-              <CheckCircle2 color="#fff" size={32} />
-              <View style={{ marginLeft: 15 }}>
-                <Text style={styles.alertTitle}>You have a new task!</Text>
-                <Text style={styles.alertSub}>
-                  Please reach the location ASAP.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.label}>Customer Details</Text>
-              <Text style={styles.customerName}>
-                {dutyData.customer?.name || "Customer"}
-              </Text>
-
-              <View style={styles.divider} />
-
-              <Text style={styles.label}>Naka / Location</Text>
-              <View style={styles.row}>
-                <MapPin color="#6B7280" size={20} />
-                <Text style={styles.addressText}>
-                  {dutyData.naka?.name || "Location"}
-                </Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.workerCancelBtn}
-              onPress={() => setShowIssueModal(true)}
-            >
-              <Text style={styles.workerCancelBtnText}>
-                Cancel / Raise Issue
-              </Text>
-            </TouchableOpacity>
-
-            <View style={{ flex: 1 }} />
-
-            {/* BIG ACTION BUTTON */}
-            <TouchableOpacity style={styles.scanBtn} onPress={openCamera}>
-              <QrCode color="#fff" size={24} style={{ marginRight: 10 }} />
-              <Text style={styles.scanBtnText}>SCAN QR TO START</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-
-      <Modal
-        visible={showIssueModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowIssueModal(false)}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 16 }}
-            >
-              <Text style={styles.modalTitle}>Cancel / Raise Issue</Text>
-
-              <Text style={styles.modalSubTitle}>
-                Please select why you want to cancel or raise an issue.
-              </Text>
-
-              <View style={styles.penaltyBox}>
-                <Text style={styles.penaltyTitle}>Penalty Notice</Text>
-                <Text style={styles.penaltyText}>
-                  Agar worker duty cancel karta hai, to account se ₹100 penalty
-                  fee deduct ho sakti hai.
-                </Text>
-              </View>
-
-              <View style={styles.reasonList}>
-                {workerIssueReasons.map((reason) => {
-                  const isSelected = selectedIssueReason === reason;
-
-                  return (
-                    <TouchableOpacity
-                      key={reason}
-                      style={[
-                        styles.reasonOption,
-                        isSelected && styles.reasonOptionSelected,
-                      ]}
-                      onPress={() => setSelectedIssueReason(reason)}
-                    >
-                      <Text
-                        style={[
-                          styles.reasonText,
-                          isSelected && styles.reasonTextSelected,
-                        ]}
-                      >
-                        {reason}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {selectedIssueReason === "Other" && (
-                <TextInput
-                  style={styles.issueTextArea}
-                  placeholder="Describe your issue..."
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={4}
-                  value={otherIssueText}
-                  onChangeText={setOtherIssueText}
-                />
-              )}
-            </ScrollView>
-
-            <View style={styles.continueBox}>
-              <Text style={styles.continueTitle}>
-                Do you want to continue this duty?
-              </Text>
-
-              <View style={styles.continueOptions}>
-                <TouchableOpacity
-                  style={[
-                    styles.continueOption,
-                    continueWork && styles.continueOptionSelected,
-                  ]}
-                  onPress={() => setContinueWork(true)}
-                >
-                  <Text
-                    style={[
-                      styles.continueOptionText,
-                      continueWork && styles.continueOptionTextSelected,
-                    ]}
-                  >
-                    Yes, Continue Work
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.continueOption,
-                    !continueWork && styles.cancelOptionSelected,
-                  ]}
-                  onPress={() => setContinueWork(false)}
-                >
-                  <Text
-                    style={[
-                      styles.continueOptionText,
-                      !continueWork && styles.cancelOptionTextSelected,
-                    ]}
-                  >
-                    No, Cancel Duty
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => {
-                  setShowIssueModal(false);
-                  setSelectedIssueReason("");
-                  setOtherIssueText("");
-                  setContinueWork(true);
-                }}
-              >
-                <Text style={styles.modalCancelText}>Close</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalSubmitBtn}
-                onPress={handleSubmitWorkerIssue}
-              >
-                <Text style={styles.modalSubmitText}>Submit Issue</Text>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.alertBox}>
+          <CheckCircle2 color="#fff" size={32} />
+          <View style={styles.alertTextWrap}>
+            <Text style={styles.alertTitle}>You have a new task!</Text>
+            <Text style={styles.alertSub}>Please reach the location ASAP.</Text>
           </View>
         </View>
-      </Modal>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Customer Details</Text>
+          <Text style={styles.customerName}>
+            {dutyData.customer?.name || "Customer"}
+          </Text>
+
+          <View style={styles.divider} />
+
+          <Text style={styles.label}>Naka / Location</Text>
+          <View style={styles.row}>
+            <MapPin color="#6B7280" size={20} />
+            <Text style={styles.addressText}>
+              {dutyData.naka?.name || "Location"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.workerQrCard}>
+          <Text style={styles.workerQrTitle}>Your Arrival QR</Text>
+          <Text style={styles.workerQrDescription}>
+            Location par pahunchne ke baad customer ko ye QR scan karne dein.
+          </Text>
+          <View style={styles.workerQrWrapper}>
+            <QRCode
+              value={workerQrData}
+              size={170}
+              color="#111827"
+              backgroundColor="#FFFFFF"
+            />
+          </View>
+          <Text style={styles.workerQrHint}>
+            Booking #{dutyData.id} · Worker #{workerSession?.id}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.workerCancelBtn}
+          activeOpacity={0.9}
+          disabled={isConnectingMitra || cancellationRequestedRef.current}
+          onPressIn={startMitraHold}
+          onPressOut={cancelMitraHold}
+        >
+          <View
+            pointerEvents="none"
+            style={[
+              styles.workerCancelProgress,
+              { width: `${mitraHoldProgress}%` as `${number}%` },
+            ]}
+          />
+          <View style={styles.workerCancelContent}>
+            {isConnectingMitra ? (
+              <ActivityIndicator color="#B91C1C" size="small" />
+            ) : null}
+            <Text style={styles.workerCancelBtnText}>
+              Any issue, Connect Mitra
+            </Text>
+            <Text style={styles.workerCancelHint}>
+              {isConnectingMitra
+                ? "Sending request..."
+                : isHoldingMitra
+                  ? "Keep holding..."
+                  : "Hold for 3 seconds"}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -442,8 +327,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  content: { flex: 1, padding: 20 },
-
+  content: { flexGrow: 1, padding: 20, paddingBottom: 36 },
   alertBox: {
     backgroundColor: "#000",
     padding: 20,
@@ -452,9 +336,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
+  alertTextWrap: { marginLeft: 15 },
   alertTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
   alertSub: { color: "#9CA3AF", fontSize: 13, marginTop: 4 },
-
   card: {
     backgroundColor: "#fff",
     padding: 20,
@@ -473,224 +357,75 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: "#E5E7EB", marginVertical: 15 },
   row: { flexDirection: "row", alignItems: "center" },
   addressText: {
+    flex: 1,
     fontSize: 16,
     color: "#4B5563",
     marginLeft: 8,
     fontWeight: "500",
   },
-
-  scanBtn: {
-    backgroundColor: "#10B981",
-    paddingVertical: 20,
-    borderRadius: 16,
-    flexDirection: "row",
-    justifyContent: "center",
+  workerQrCard: {
     alignItems: "center",
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
+    backgroundColor: "#FFFFFF",
+    borderColor: "#A7F3D0",
+    borderRadius: 24,
+    borderWidth: 1.5,
+    marginTop: 16,
+    padding: 18,
   },
-  scanBtnText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "900",
-    letterSpacing: 1,
-  },
-
-  // Scanner UI
-  scannerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  scannerBox: {
-    width: 250,
-    height: 250,
-    borderWidth: 4,
-    borderColor: "#10B981",
-    backgroundColor: "transparent",
-    borderRadius: 20,
-  },
-  scannerText: {
-    color: "#fff",
-    fontSize: 16,
-    marginTop: 30,
+  workerQrTitle: { color: "#111827", fontSize: 19, fontWeight: "900" },
+  workerQrDescription: {
+    color: "#6B7280",
+    fontSize: 13,
     fontWeight: "600",
+    lineHeight: 19,
+    marginTop: 6,
+    maxWidth: 280,
+    textAlign: "center",
   },
-  closeScannerBtn: { position: "absolute", bottom: 50 },
+  workerQrWrapper: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    marginVertical: 15,
+    padding: 12,
+  },
+  workerQrHint: { color: "#047857", fontSize: 12, fontWeight: "800" },
   workerCancelBtn: {
+    position: "relative",
+    overflow: "hidden",
+    minHeight: 66,
     backgroundColor: "#FEF2F2",
     borderWidth: 1,
     borderColor: "#FECACA",
-    paddingVertical: 15,
     borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 16,
+  },
+  workerCancelProgress: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "#FECACA",
+  },
+  workerCancelContent: {
+    zIndex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "column",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
   },
   workerCancelBtnText: {
-    color: "#DC2626",
+    color: "#B91C1C",
     fontWeight: "900",
-    fontSize: 14,
-    letterSpacing: 0.5,
+    fontSize: 15,
+    letterSpacing: 0.2,
   },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    padding: 22,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    maxHeight: "90%",
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#111827",
-  },
-  modalSubTitle: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginTop: 6,
-    marginBottom: 14,
-    lineHeight: 20,
-  },
-  penaltyBox: {
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FED7AA",
-    padding: 14,
-    borderRadius: 18,
-    marginBottom: 16,
-  },
-  penaltyTitle: {
-    color: "#C2410C",
-    fontWeight: "900",
-    fontSize: 14,
-  },
-  penaltyText: {
-    color: "#9A3412",
+  workerCancelHint: {
+    color: "#991B1B",
+    fontSize: 11,
     fontWeight: "700",
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 4,
-  },
-  reasonList: {
-    gap: 10,
-  },
-  reasonOption: {
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-  },
-  reasonOptionSelected: {
-    borderColor: "#10B981",
-    backgroundColor: "#ECFDF5",
-  },
-  reasonText: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  reasonTextSelected: {
-    color: "#047857",
-  },
-  issueTextArea: {
-    marginTop: 14,
-    minHeight: 90,
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderRadius: 18,
-    padding: 14,
-    textAlignVertical: "top",
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    backgroundColor: "#F9FAFB",
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  modalCancelBtn: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-    paddingVertical: 15,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    color: "#374151",
-    fontWeight: "900",
-  },
-  modalSubmitBtn: {
-    flex: 1.4,
-    backgroundColor: "#EF4444",
-    paddingVertical: 15,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  modalSubmitText: {
-    color: "#fff",
-    fontWeight: "900",
-  },
-  continueBox: {
-    marginTop: 16,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 18,
-    padding: 14,
-  },
-  continueTitle: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  continueOptions: {
-    gap: 10,
-  },
-  continueOption: {
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderRadius: 15,
-  },
-  continueOptionSelected: {
-    borderColor: "#10B981",
-    backgroundColor: "#ECFDF5",
-  },
-  cancelOptionSelected: {
-    borderColor: "#EF4444",
-    backgroundColor: "#FEF2F2",
-  },
-  continueOptionText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#374151",
-    textAlign: "center",
-  },
-  continueOptionTextSelected: {
-    color: "#047857",
-  },
-  cancelOptionTextSelected: {
-    color: "#DC2626",
+    marginTop: 3,
   },
 });
