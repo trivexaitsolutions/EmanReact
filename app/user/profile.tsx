@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CommonActions } from "@react-navigation/native";
-import { Stack, useNavigation } from "expo-router";
+import { router, Stack, useNavigation } from "expo-router";
 import {
     ChevronRight,
     HelpCircle,

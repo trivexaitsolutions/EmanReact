@@ -160,7 +160,7 @@ export default function CustomerDashboard() {
         const bookingId = initResponse.data.bookingId;
 
         // 3. Razorpay Popup Open Karo
-        var options = {
+        const options = {
           description: `Booking for ${workerCount} workers`,
           image: "https://your-company-logo-url.com/logo.png", // TrivexaIT ka logo daal sakte hain
           currency: "INR",

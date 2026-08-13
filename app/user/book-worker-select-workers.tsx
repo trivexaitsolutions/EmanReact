@@ -34,7 +34,7 @@ type WorkerOption = {
   ratingCount?: number;
   mehnatRating?: number;
   vyavhaarRating?: number;
-  nakas?: Array<{
+  nakas?: {
     id: number;
     name?: string | null;
     pincode?: string | null;
@@ -42,11 +42,11 @@ type WorkerOption = {
       id: number;
       name?: string | null;
     } | null;
-  }>;
-  skills?: Array<{
+  }[];
+  skills?: {
     id: number;
     name?: string | null;
-  }>;
+  }[];
 };
 
 type BookingDraft = {
@@ -59,6 +59,20 @@ type BookingDraft = {
   assignmentMode?: "AUTO" | "CUSTOMER_SELECT";
   selectedWorkerIds?: number[];
   selectedWorkers?: WorkerOption[];
+  workLatitude?: number;
+  workLongitude?: number;
+  workAddress?: string;
+  serviceRadiusKm?: number;
+  serviceRadiusMeters?: number;
+};
+
+const formatRadius = (draft: BookingDraft) => {
+  const meters = Number(
+    draft.serviceRadiusMeters || Number(draft.serviceRadiusKm || 5) * 1000,
+  );
+  return meters >= 1000
+    ? `${Number((meters / 1000).toFixed(1))} km`
+    : `${meters} m`;
 };
 
 export default function BookWorkerSelectWorkers() {
@@ -78,7 +92,11 @@ export default function BookWorkerSelectWorkers() {
 
   const loadAvailableWorkers = async (manualRefresh: boolean) => {
     try {
-      manualRefresh ? setIsRefreshing(true) : setIsLoading(true);
+      if (manualRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
 
       const savedDraft = await AsyncStorage.getItem("newBookingDraft");
 
@@ -92,15 +110,18 @@ export default function BookWorkerSelectWorkers() {
       }
 
       const parsedDraft: BookingDraft = JSON.parse(savedDraft);
-      const nakaIds = Array.isArray(parsedDraft.nakaIds)
-        ? parsedDraft.nakaIds.map((id) => Number(id))
-        : [];
       const workerCount = Number(parsedDraft.workerCount || 1);
+      const workLatitude = Number(parsedDraft.workLatitude);
+      const workLongitude = Number(parsedDraft.workLongitude);
 
-      if (!parsedDraft.skillId || nakaIds.length === 0) {
+      if (
+        !parsedDraft.skillId ||
+        !Number.isFinite(workLatitude) ||
+        !Number.isFinite(workLongitude)
+      ) {
         Alert.alert(
           "Booking Details Missing",
-          "Please select skill and nearby Nakas again.",
+          "Please select skill and confirm work location again.",
         );
         router.replace("/user/book-worker-step1");
         return;
@@ -109,7 +130,8 @@ export default function BookWorkerSelectWorkers() {
       const response = await axios.post(
         `${API_URL}/user/available-workers`,
         {
-          nakaIds,
+          workLatitude,
+          workLongitude,
           skillId: Number(parsedDraft.skillId),
           minRating: Number(parsedDraft.minRating || 0),
         },
@@ -136,6 +158,10 @@ export default function BookWorkerSelectWorkers() {
       const updatedDraft: BookingDraft = {
         ...parsedDraft,
         assignmentMode: "CUSTOMER_SELECT",
+        selectedNakas: response.data.selectedNakas || [],
+        nakaIds: (response.data.selectedNakas || []).map(
+          (naka: any) => Number(naka.id),
+        ),
         selectedWorkerIds: previouslySelected,
         selectedWorkers: availableWorkers.filter((worker) =>
           previouslySelected.includes(Number(worker.id)),
@@ -265,14 +291,10 @@ export default function BookWorkerSelectWorkers() {
     }
   };
 
-  const selectedNakaNames = useMemo(() => {
-    return Array.isArray(draft.selectedNakas)
-      ? draft.selectedNakas
-          .map((naka: any) => naka.name)
-          .filter(Boolean)
-          .join(", ")
-      : "";
-  }, [draft.selectedNakas]);
+  const nearbyNakaCount = useMemo(
+    () => (Array.isArray(draft.selectedNakas) ? draft.selectedNakas.length : 0),
+    [draft.selectedNakas],
+  );
 
   if (isLoading) {
     return (
@@ -330,7 +352,7 @@ export default function BookWorkerSelectWorkers() {
         <View style={styles.summaryInfoRow}>
           <MapPin size={16} color="#5B6470" />
           <Text style={styles.summaryInfoText} numberOfLines={1}>
-            {selectedNakaNames || "Selected Nakas"}
+            {nearbyNakaCount} nearby Naka{nearbyNakaCount === 1 ? "" : "s"} • {formatRadius(draft)} service area
           </Text>
         </View>
       </View>
@@ -345,13 +367,13 @@ export default function BookWorkerSelectWorkers() {
             <User size={42} color="#A3A3A3" />
             <Text style={styles.emptyTitle}>No workers available</Text>
             <Text style={styles.emptyText}>
-              Selected Nakas me is skill ke available workers nahi mile.
+              Is work location ke {formatRadius(draft)} area me is skill ke available workers nahi mile.
             </Text>
             <TouchableOpacity
               style={styles.changeNakaButton}
               onPress={() => router.back()}
             >
-              <Text style={styles.changeNakaButtonText}>Change Nakas</Text>
+              <Text style={styles.changeNakaButtonText}>Change Work Location</Text>
             </TouchableOpacity>
           </View>
         ) : (

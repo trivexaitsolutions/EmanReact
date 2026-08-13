@@ -374,7 +374,10 @@ export default function DutyInProgress() {
         <View style={styles.row}>
           <MapPin color="#6B7280" size={16} />
           <Text style={styles.addressText}>
-            {dutyData.naka?.name || "Work Location"}
+            {dutyData.workLocationText ||
+              dutyData.address?.mapAddress ||
+              dutyData.address?.addressLine ||
+              "Work Location"}
           </Text>
         </View>
 

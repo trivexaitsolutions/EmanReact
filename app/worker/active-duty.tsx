@@ -251,11 +251,14 @@ export default function ActiveDuty() {
 
           <View style={styles.divider} />
 
-          <Text style={styles.label}>Naka / Location</Text>
+          <Text style={styles.label}>Work Location</Text>
           <View style={styles.row}>
             <MapPin color="#6B7280" size={20} />
             <Text style={styles.addressText}>
-              {dutyData.naka?.name || "Location"}
+              {dutyData.workLocationText ||
+                dutyData.address?.mapAddress ||
+                dutyData.address?.addressLine ||
+                "Location confirmed by customer"}
             </Text>
           </View>
         </View>

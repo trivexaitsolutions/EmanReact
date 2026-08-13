@@ -148,9 +148,12 @@ export default function WorkerBookingDetails() {
           <View style={styles.detailRow}>
             <MapPin color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Source Naka</Text>
+              <Text style={styles.detailLabel}>Work Location</Text>
               <Text style={styles.detailValue}>
-                {booking.naka?.name || booking.nakaName || "General Naka"}
+                {booking.workLocationText ||
+                  booking.naka?.name ||
+                  booking.nakaName ||
+                  "Location confirmed by customer"}
               </Text>
             </View>
           </View>

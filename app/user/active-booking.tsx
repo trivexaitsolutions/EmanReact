@@ -355,11 +355,7 @@ export default function ActiveBooking() {
 
       await fetchActiveBooking();
 
-      alert(
-        cancelType === "BOOKING"
-          ? "Your booking cancellation request has been raised."
-          : "Selected worker cancellation request has been raised.",
-      );
+      alert("Selected worker cancellation request has been raised.");
     } catch (error: any) {
       console.log("Client Issue Error:", error?.response?.data || error);
 

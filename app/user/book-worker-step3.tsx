@@ -29,11 +29,16 @@ type BookingDraft = {
   addressId?: number;
   assignmentMode?: "AUTO" | "CUSTOMER_SELECT";
   selectedWorkerIds?: number[];
-  selectedWorkers?: Array<{
+  selectedWorkers?: {
     id: number;
     name?: string;
     averageRating?: number;
-  }>;
+  }[];
+  workLatitude?: number;
+  workLongitude?: number;
+  workAddress?: string;
+  serviceRadiusKm?: number;
+  serviceRadiusMeters?: number;
 };
 
 export default function BookWorkerStep3() {
@@ -61,6 +66,8 @@ export default function BookWorkerStep3() {
   useFocusEffect(
     useCallback(() => {
       loadPageData();
+      // Page data intentionally refreshes whenever this route receives focus.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
 
@@ -252,14 +259,20 @@ export default function BookWorkerStep3() {
       return;
     }
 
-    if (!Array.isArray(draft.nakaIds) || draft.nakaIds.length === 0) {
-      Alert.alert("Naka Missing", "Please select at least one nearby Naka.");
-
-      return;
-    }
-
-    if (draft.nakaIds.length > 3) {
-      Alert.alert("Invalid Naka Selection", "You can select maximum 3 Nakas.");
+    if (
+      !Number.isFinite(Number(draft.workLatitude)) ||
+      !Number.isFinite(Number(draft.workLongitude))
+    ) {
+      Alert.alert(
+        "Work Location Missing",
+        "Please confirm the exact work location on map.",
+        [
+          {
+            text: "Confirm Location",
+            onPress: () => router.push("/user/book-worker-step2"),
+          },
+        ],
+      );
 
       return;
     }
@@ -306,8 +319,6 @@ export default function BookWorkerStep3() {
         {
           customerId: Number(customer.id),
 
-          nakaIds: draft.nakaIds.map((id) => Number(id)),
-
           skillId: Number(draft.skillId),
 
           workerCount: Number(draft.workerCount || 1),
@@ -315,6 +326,12 @@ export default function BookWorkerStep3() {
           minRating: Number(draft.minRating || 0),
 
           addressId: Number(selectedAddress.id),
+
+          workLatitude: Number(draft.workLatitude),
+
+          workLongitude: Number(draft.workLongitude),
+
+          workLocationText: draft.workAddress || "",
 
           selectedWorkerIds:
             draft.assignmentMode === "CUSTOMER_SELECT"
@@ -369,7 +386,7 @@ export default function BookWorkerStep3() {
         notes: {
           bookingId: String(createdBookingId),
 
-          selectedNakas: draft.nakaIds.join(","),
+          selectedNakas: (draft.nakaIds || []).join(","),
         },
       });
 
@@ -453,6 +470,22 @@ export default function BookWorkerStep3() {
               text: "Select Worker",
               onPress: () =>
                 router.replace("/user/book-worker-select-workers"),
+            },
+          ],
+        );
+
+        return;
+      }
+
+      if (errorCode === "NO_NAKAS_IN_RADIUS") {
+        Alert.alert(
+          "Service Area Changed",
+          error?.response?.data?.message ||
+            "Is work location ke nearby verified Naka nahi mila.",
+          [
+            {
+              text: "Change Location",
+              onPress: () => router.replace("/user/book-worker-step2"),
             },
           ],
         );
@@ -705,13 +738,26 @@ export default function BookWorkerStep3() {
             <View style={styles.rowDivider} />
 
             <View style={styles.overviewRow}>
-              <Text style={styles.overviewLabel}>Selected Nakas</Text>
+              <Text style={styles.overviewLabel}>Nearby Nakas (Auto)</Text>
 
               <Text
                 style={[styles.overviewValue, styles.nakaValue]}
                 numberOfLines={2}
               >
                 {selectedNakaNames || "-"}
+              </Text>
+            </View>
+
+            <View style={styles.rowDivider} />
+
+            <View style={styles.overviewRow}>
+              <Text style={styles.overviewLabel}>Map Location</Text>
+
+              <Text
+                style={[styles.overviewValue, styles.nakaValue]}
+                numberOfLines={2}
+              >
+                {draft.workAddress || "Confirmed on map"}
               </Text>
             </View>
           </View>
