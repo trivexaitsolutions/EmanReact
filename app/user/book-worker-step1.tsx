@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Stack, router } from "expo-router";
-import { ArrowLeft, BriefcaseBusiness, Grid2X2, Minus, Plus, Search, Star, X } from "lucide-react-native";
+import { BriefcaseBusiness, Grid2X2, Minus, Plus, Search, Star, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -17,6 +17,7 @@ import {
     View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import BookingStepHeader from "../../components/ui/booking-step-header";
 
 const SERVER_URL = API_URL.replace(/\/api\/?$/, "");
 
@@ -32,7 +33,7 @@ export default function BookWorkerStep1() {
 
   const [selectedSkill, setSelectedSkill] = useState<number | null>(null);
   const [selectedSkillName, setSelectedSkillName] = useState("");
-  const [minRating, setMinRating] = useState(0);
+  const [minRating, setMinRating] = useState(3);
   const [workerCount, setWorkerCount] = useState(1);
   const [skillModalVisible, setSkillModalVisible] = useState(false);
   const [skillSearch, setSkillSearch] = useState("");
@@ -178,50 +179,9 @@ export default function BookWorkerStep1() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft size={31} color="#16863A" strokeWidth={2.5} />
-        </TouchableOpacity>
+      <BookingStepHeader step={1} />
 
-        <Text style={styles.headerTitle}>Book a Worker</Text>
-
-        <Text style={styles.stepText}>Step 1 of 3</Text>
-      </View>
-
-      <View style={styles.progressContainer}>
-        <View style={styles.progressLineActive} />
-
-        <View style={styles.progressCircleActive}>
-          <Text style={styles.progressCircleActiveText}>1</Text>
-        </View>
-
-        <View style={styles.progressLineInactive} />
-
-        <View style={styles.progressCircleInactive}>
-          <Text style={styles.progressCircleInactiveText}>2</Text>
-        </View>
-
-        <View style={styles.progressLineInactiveLarge} />
-
-        <View style={styles.progressCircleInactive}>
-          <Text style={styles.progressCircleInactiveText}>3</Text>
-        </View>
-
-        <View style={styles.progressLineEnd} />
-      </View>
-
-      <View style={styles.divider} />
-
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.pageTitle}>Select Skill & Rating</Text>
-
+      <View style={styles.content}>
         <Text style={styles.sectionTitle}>Select Skill</Text>
 
         <View style={styles.skillGrid}>
@@ -246,7 +206,7 @@ export default function BookWorkerStep1() {
                   ) : (
                     <View style={styles.skillImagePlaceholder}>
                       <BriefcaseBusiness
-                        size={28}
+                        size={22}
                         color={isSelected ? "#16863A" : "#6B7280"}
                       />
                     </View>
@@ -281,7 +241,7 @@ export default function BookWorkerStep1() {
               onPress={openSkillModal}
             >
               <View style={styles.viewAllIcon}>
-                <Grid2X2 size={29} color="#16863A" />
+                <Grid2X2 size={22} color="#16863A" />
               </View>
               <Text style={styles.viewAllText}>View All</Text>
               <Text numberOfLines={1} style={styles.viewAllCount}>
@@ -309,7 +269,7 @@ export default function BookWorkerStep1() {
                 onPress={() => handleRatingSelect(star)}
               >
                 <Star
-                  size={39}
+                  size={29}
                   color={isActive ? "#16863A" : "#969696"}
                   fill={isActive ? "#16863A" : "transparent"}
                   strokeWidth={2}
@@ -372,8 +332,7 @@ export default function BookWorkerStep1() {
           </View>
         </View>
 
-        <View style={styles.bottomSpace} />
-      </ScrollView>
+      </View>
 
       <Modal
         visible={skillModalVisible}
@@ -601,44 +560,33 @@ const styles = StyleSheet.create({
 
   content: {
     flex: 1,
-  },
-
-  contentContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 28,
-  },
-
-  pageTitle: {
-    fontSize: 35,
-    fontWeight: "900",
-    color: "#003B1F",
-    letterSpacing: -1,
-    marginBottom: 32,
+    paddingHorizontal: 14,
+    paddingTop: 12,
   },
 
   sectionTitle: {
-    fontSize: 21,
+    fontSize: 16,
     fontWeight: "800",
     color: "#202124",
-    marginBottom: 16,
+    marginBottom: 9,
   },
 
   skillGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    marginBottom: 34,
+    marginBottom: 12,
   },
 
   skillCard: {
-    width: "48%",
-    minHeight: 142,
+    width: "48.5%",
+    minHeight: 103,
     borderWidth: 1,
     borderColor: "#DEDEDE",
-    borderRadius: 18,
+    borderRadius: 14,
     alignItems: "center",
-    padding: 9,
-    marginBottom: 14,
+    padding: 7,
+    marginBottom: 8,
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
   },
@@ -651,11 +599,11 @@ const styles = StyleSheet.create({
 
   skillImageWrap: {
     width: "100%",
-    height: 82,
-    borderRadius: 12,
+    height: 57,
+    borderRadius: 10,
     overflow: "hidden",
     backgroundColor: "#F3F4F6",
-    marginBottom: 9,
+    marginBottom: 6,
   },
 
   skillImage: {
@@ -671,8 +619,8 @@ const styles = StyleSheet.create({
   },
 
   skillCardText: {
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "800",
     color: "#171717",
     textAlign: "center",
@@ -689,26 +637,26 @@ const styles = StyleSheet.create({
   },
 
   viewAllIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
-    marginBottom: 9,
+    marginBottom: 6,
   },
 
   viewAllText: {
     color: "#16863A",
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "900",
   },
 
   viewAllCount: {
     color: "#6B7280",
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: "600",
-    marginTop: 3,
+    marginTop: 2,
   },
 
   modalOverlay: {
@@ -856,24 +804,24 @@ const styles = StyleSheet.create({
   },
 
   ratingCard: {
-    height: 130,
+    height: 82,
     borderWidth: 1,
     borderColor: "#DEDEDE",
-    borderRadius: 18,
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
 
   ratingItem: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 3,
   },
 
   ratingNumber: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: "500",
     color: "#5B5B5B",
   },
@@ -884,33 +832,33 @@ const styles = StyleSheet.create({
   },
 
   ratingHelper: {
-    fontSize: 16,
+    fontSize: 11,
     color: "#747474",
-    marginTop: 17,
-    marginBottom: 33,
+    marginTop: 6,
+    marginBottom: 11,
   },
 
   workerCountCard: {
     borderWidth: 1,
     borderColor: "#DEDEDE",
-    borderRadius: 18,
-    minHeight: 94,
-    paddingHorizontal: 20,
+    borderRadius: 14,
+    minHeight: 64,
+    paddingHorizontal: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
 
   workerCountTitle: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "800",
     color: "#171717",
   },
 
   workerCountHelper: {
-    fontSize: 13,
+    fontSize: 10,
     color: "#777777",
-    marginTop: 5,
+    marginTop: 2,
   },
 
   counter: {
@@ -922,43 +870,43 @@ const styles = StyleSheet.create({
   },
 
   counterButton: {
-    width: 42,
-    height: 42,
+    width: 34,
+    height: 34,
     justifyContent: "center",
     alignItems: "center",
   },
 
   counterValue: {
-    minWidth: 38,
+    minWidth: 32,
     textAlign: "center",
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "800",
     color: "#111111",
   },
 
   bottomSpace: {
-    height: 35,
+    height: 0,
   },
 
   footer: {
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 24,
-    paddingTop: 14,
-    paddingBottom: 25,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 10,
     borderTopWidth: 1,
     borderTopColor: "#E7E7E7",
   },
 
   nextButton: {
-    height: 63,
-    borderRadius: 15,
+    height: 52,
+    borderRadius: 14,
     backgroundColor: "#16863A",
     justifyContent: "center",
     alignItems: "center",
   },
 
   nextButtonText: {
-    fontSize: 21,
+    fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
   },

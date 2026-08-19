@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import * as Location from "expo-location";
 import { router, Stack } from "expo-router";
-import { ArrowLeft, Grid2X2, LocateFixed, MapPin, X } from "lucide-react-native";
+import { Grid2X2, LocateFixed, MapPin, X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import BookingStepHeader from "../../components/ui/booking-step-header";
 
 const DEFAULT_RADIUS_METERS = 5000;
 
@@ -335,34 +336,7 @@ export default function BookWorkerStep2() {
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <ArrowLeft size={22} color="#0F172A" />
-        </TouchableOpacity>
-
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>BOOK WORKER • STEP 2</Text>
-          <Text style={styles.title}>Work location</Text>
-        </View>
-      </View>
-
-      <View style={styles.progressContainer}>
-        <View style={styles.progressLineStart} />
-        <View style={styles.progressCircleDone}>
-          <Text style={styles.progressDoneText}>1</Text>
-        </View>
-        <View style={styles.progressLineActive} />
-        <View style={styles.progressCircleActive}>
-          <Text style={styles.progressActiveText}>2</Text>
-        </View>
-        <View style={styles.progressLineInactive} />
-        <View style={styles.progressCircleInactive}>
-          <Text style={styles.progressInactiveText}>3</Text>
-        </View>
-        <View style={styles.progressLineEnd} />
-      </View>
-
-      <View style={styles.divider} />
+      <BookingStepHeader step={2} />
 
       <View style={styles.content}>
         <View style={styles.sectionHeader}>
