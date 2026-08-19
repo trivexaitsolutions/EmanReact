@@ -1,19 +1,30 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Stack, router } from "expo-router";
-import { ArrowLeft, Minus, Plus, Star } from "lucide-react-native";
+import { ArrowLeft, BriefcaseBusiness, Grid2X2, Minus, Plus, Search, Star, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Image,
+    Modal,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+
+const SERVER_URL = API_URL.replace(/\/api\/?$/, "");
+
+const getSkillImageUri = (imageUrl?: string | null) => {
+  if (!imageUrl) return null;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return `${SERVER_URL}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+};
 
 export default function BookWorkerStep1() {
   const [skills, setSkills] = useState<any[]>([]);
@@ -23,6 +34,9 @@ export default function BookWorkerStep1() {
   const [selectedSkillName, setSelectedSkillName] = useState("");
   const [minRating, setMinRating] = useState(0);
   const [workerCount, setWorkerCount] = useState(1);
+  const [skillModalVisible, setSkillModalVisible] = useState(false);
+  const [skillSearch, setSkillSearch] = useState("");
+  const [modalSkillId, setModalSkillId] = useState<number | null>(null);
 
   useEffect(() => {
     loadSkills();
@@ -79,6 +93,33 @@ export default function BookWorkerStep1() {
     setSelectedSkill(skill.id);
     setSelectedSkillName(skill.name);
   };
+
+  const openSkillModal = () => {
+    setModalSkillId(selectedSkill);
+    setSkillSearch("");
+    setSkillModalVisible(true);
+  };
+
+  const confirmModalSkill = () => {
+    const skill = skills.find(
+      (item: any) => Number(item.id) === Number(modalSkillId),
+    );
+
+    if (!skill) {
+      Alert.alert("Select Skill", "Please select a skill.");
+      return;
+    }
+
+    handleSkillSelect(skill);
+    setSkillModalVisible(false);
+    setSkillSearch("");
+  };
+
+  const filteredSkills = skills.filter((skill: any) =>
+    String(skill.name || "")
+      .toLowerCase()
+      .includes(skillSearch.trim().toLowerCase()),
+  );
 
   const handleRatingSelect = (star: number) => {
     if (minRating === star) {
@@ -184,8 +225,9 @@ export default function BookWorkerStep1() {
         <Text style={styles.sectionTitle}>Select Skill</Text>
 
         <View style={styles.skillGrid}>
-          {skills.map((skill: any) => {
+          {skills.slice(0, 3).map((skill: any) => {
             const isSelected = selectedSkill === skill.id;
+            const imageUri = getSkillImageUri(skill.imageUrl);
 
             return (
               <TouchableOpacity
@@ -194,7 +236,25 @@ export default function BookWorkerStep1() {
                 style={[styles.skillCard, isSelected && styles.skillCardActive]}
                 onPress={() => handleSkillSelect(skill)}
               >
+                <View style={styles.skillImageWrap}>
+                  {imageUri ? (
+                    <Image
+                      source={{ uri: imageUri }}
+                      resizeMode="cover"
+                      style={styles.skillImage}
+                    />
+                  ) : (
+                    <View style={styles.skillImagePlaceholder}>
+                      <BriefcaseBusiness
+                        size={28}
+                        color={isSelected ? "#16863A" : "#6B7280"}
+                      />
+                    </View>
+                  )}
+                </View>
+
                 <Text
+                  numberOfLines={2}
                   style={[
                     styles.skillCardText,
                     isSelected && styles.skillCardTextActive,
@@ -205,6 +265,35 @@ export default function BookWorkerStep1() {
               </TouchableOpacity>
             );
           })}
+
+          {skills.length > 3 ? (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[
+                styles.skillCard,
+                styles.viewAllCard,
+                selectedSkill &&
+                  !skills
+                    .slice(0, 3)
+                    .some((skill: any) => Number(skill.id) === selectedSkill) &&
+                  styles.skillCardActive,
+              ]}
+              onPress={openSkillModal}
+            >
+              <View style={styles.viewAllIcon}>
+                <Grid2X2 size={29} color="#16863A" />
+              </View>
+              <Text style={styles.viewAllText}>View All</Text>
+              <Text numberOfLines={1} style={styles.viewAllCount}>
+                {selectedSkill &&
+                !skills
+                  .slice(0, 3)
+                  .some((skill: any) => Number(skill.id) === selectedSkill)
+                  ? selectedSkillName
+                  : `${skills.length} services`}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <Text style={styles.sectionTitle}>Minimum Worker Rating</Text>
@@ -285,6 +374,106 @@ export default function BookWorkerStep1() {
 
         <View style={styles.bottomSpace} />
       </ScrollView>
+
+      <Modal
+        visible={skillModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSkillModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.skillModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Skill</Text>
+              <TouchableOpacity
+                style={styles.modalClose}
+                onPress={() => setSkillModalVisible(false)}
+              >
+                <X size={24} color="#202124" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.searchBox}>
+              <Search size={20} color="#747474" />
+              <TextInput
+                value={skillSearch}
+                onChangeText={setSkillSearch}
+                placeholder="Search skills"
+                placeholderTextColor="#9A9A9A"
+                style={styles.searchInput}
+                autoCorrect={false}
+              />
+            </View>
+
+            <ScrollView
+              style={styles.modalSkillScroll}
+              contentContainerStyle={styles.modalSkillGrid}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredSkills.map((skill: any) => {
+                const isSelected = Number(modalSkillId) === Number(skill.id);
+                const imageUri = getSkillImageUri(skill.imageUrl);
+
+                return (
+                  <TouchableOpacity
+                    key={skill.id}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.modalSkillCard,
+                      isSelected && styles.modalSkillCardActive,
+                    ]}
+                    onPress={() => setModalSkillId(Number(skill.id))}
+                  >
+                    <View style={styles.modalSkillImageWrap}>
+                      {imageUri ? (
+                        <Image
+                          source={{ uri: imageUri }}
+                          resizeMode="cover"
+                          style={styles.modalSkillImage}
+                        />
+                      ) : (
+                        <View style={styles.modalSkillPlaceholder}>
+                          <BriefcaseBusiness
+                            size={25}
+                            color={isSelected ? "#16863A" : "#6B7280"}
+                          />
+                        </View>
+                      )}
+                    </View>
+
+                    <Text
+                      numberOfLines={2}
+                      style={[
+                        styles.modalSkillName,
+                        isSelected && styles.modalSkillNameActive,
+                      ]}
+                    >
+                      {skill.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {filteredSkills.length === 0 ? (
+                <Text style={styles.noSkillsText}>No skills found</Text>
+              ) : null}
+            </ScrollView>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[
+                styles.modalSelectButton,
+                !modalSkillId && styles.modalSelectButtonDisabled,
+              ]}
+              onPress={confirmModalSkill}
+              disabled={!modalSkillId}
+            >
+              <Text style={styles.modalSelectButtonText}>Select</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <View style={styles.footer}>
         <TouchableOpacity
@@ -443,15 +632,15 @@ const styles = StyleSheet.create({
 
   skillCard: {
     width: "48%",
-    minHeight: 98,
+    minHeight: 142,
     borderWidth: 1,
     borderColor: "#DEDEDE",
     borderRadius: 18,
-    justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 10,
+    padding: 9,
     marginBottom: 14,
     backgroundColor: "#FFFFFF",
+    overflow: "hidden",
   },
 
   skillCardActive: {
@@ -460,8 +649,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1FAF4",
   },
 
+  skillImageWrap: {
+    width: "100%",
+    height: 82,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#F3F4F6",
+    marginBottom: 9,
+  },
+
+  skillImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  skillImagePlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+
   skillCardText: {
-    fontSize: 20,
+    fontSize: 15,
+    lineHeight: 19,
     fontWeight: "800",
     color: "#171717",
     textAlign: "center",
@@ -469,6 +680,179 @@ const styles = StyleSheet.create({
 
   skillCardTextActive: {
     color: "#16863A",
+  },
+
+  viewAllCard: {
+    justifyContent: "center",
+    backgroundColor: "#F1FAF4",
+    borderColor: "#B7DFC5",
+  },
+
+  viewAllIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 9,
+  },
+
+  viewAllText: {
+    color: "#16863A",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+
+  viewAllCount: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 3,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.38)",
+  },
+
+  skillModal: {
+    height: "82%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#171717",
+  },
+
+  modalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+
+  searchBox: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#DEDEDE",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#171717",
+  },
+
+  modalSkillScroll: {
+    flex: 1,
+  },
+
+  modalSkillGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+  },
+
+  modalSkillCard: {
+    width: "48%",
+    minHeight: 128,
+    borderWidth: 1,
+    borderColor: "#DEDEDE",
+    borderRadius: 16,
+    padding: 8,
+    marginBottom: 12,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+
+  modalSkillCardActive: {
+    borderColor: "#16863A",
+    borderWidth: 2,
+    backgroundColor: "#F1FAF4",
+  },
+
+  modalSkillImageWrap: {
+    width: "100%",
+    height: 76,
+    borderRadius: 11,
+    overflow: "hidden",
+    backgroundColor: "#F3F4F6",
+    marginBottom: 7,
+  },
+
+  modalSkillImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  modalSkillPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  modalSkillName: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "800",
+    color: "#171717",
+    textAlign: "center",
+  },
+
+  modalSkillNameActive: {
+    color: "#16863A",
+  },
+
+  noSkillsText: {
+    width: "100%",
+    textAlign: "center",
+    color: "#777777",
+    fontSize: 15,
+    paddingVertical: 28,
+  },
+
+  modalSelectButton: {
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: "#16863A",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+
+  modalSelectButtonDisabled: {
+    opacity: 0.45,
+  },
+
+  modalSelectButtonText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 
   ratingCard: {

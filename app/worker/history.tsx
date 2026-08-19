@@ -20,6 +20,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import WorkerBottomNav from "../../components/worker-bottom-nav";
 import { API_URL } from "../../constants/api";
 
 export default function WorkerHistory() {
@@ -61,93 +62,127 @@ export default function WorkerHistory() {
     return item.workerShare || item.amount || item.totalAmount || 0;
   };
 
-  const renderBookingItem = ({ item }: any) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.7}
-      onPress={() => {
-        router.push({
-          pathname: "/worker/booking-details",
-          params: { id: item.id },
-        });
-      }}
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.dateContainer}>
-          <Calendar color="#6B7280" size={16} />
-          <Text style={styles.dateText}>
-            {new Date(item.createdAt).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          </Text>
-        </View>
+  const renderBookingItem = ({ item }: any) => {
+    const isCompleted = item.status === "COMPLETED";
+    const isCancelled = item.status === "CANCELLED";
 
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor:
-                item.status === "COMPLETED" ? "#ECFDF5" : "#FEF3C7",
-            },
-          ]}
-        >
-          <Text
+    const statusBackground = isCompleted
+      ? "#ECFDF5"
+      : isCancelled
+        ? "#FEF2F2"
+        : "#FEF3C7";
+
+    const statusColor = isCompleted
+      ? "#059669"
+      : isCancelled
+        ? "#DC2626"
+        : "#D97706";
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.7}
+        onPress={() => {
+          router.push({
+            pathname: "/worker/booking-details",
+            params: { id: item.id },
+          });
+        }}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.dateContainer}>
+            <Calendar color="#6B7280" size={16} />
+            <Text style={styles.dateText}>
+              {new Date(item.createdAt).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+            </Text>
+          </View>
+
+          <View
             style={[
-              styles.statusText,
-              { color: item.status === "COMPLETED" ? "#059669" : "#D97706" },
+              styles.statusBadge,
+              { backgroundColor: statusBackground },
             ]}
           >
-            {item.status}
-          </Text>
-        </View>
-      </View>
-
-      <Text style={styles.nakaName}>
-        {item.customerName || "Client Booking"}
-      </Text>
-
-      <View style={styles.detailsRow}>
-        <View style={styles.detailItem}>
-          <User color="#6B7280" size={18} />
-          <Text style={styles.detailValue}>
-            {item.customerPhone || "Client"}
-          </Text>
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {item.status}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.detailItem}>
-          <IndianRupee color="#6B7280" size={18} />
-          <Text style={styles.detailValue}>₹{getAmount(item)}</Text>
-        </View>
-      </View>
+        <Text style={styles.nakaName}>
+          {item.customerName || "Client Booking"}
+        </Text>
 
-      {item.status === "COMPLETED" && (
-        <View
-          style={[
-            styles.ratingMiniBadge,
-            {
-              backgroundColor: item.isClientRated ? "#ECFDF5" : "#FEF3C7",
-            },
-          ]}
-        >
-          <Star
-            color={item.isClientRated ? "#059669" : "#D97706"}
-            size={14}
-            fill={item.isClientRated ? "#059669" : "transparent"}
-          />
-          <Text
+        <View style={styles.detailsRow}>
+          <View style={styles.detailItem}>
+            <User color="#6B7280" size={18} />
+            <Text style={styles.detailValue}>
+              {item.customerPhone || "Client"}
+            </Text>
+          </View>
+
+          <View style={styles.detailItem}>
+            <IndianRupee color="#6B7280" size={18} />
+            <Text style={styles.detailValue}>₹{getAmount(item)}</Text>
+          </View>
+        </View>
+
+        {isCancelled && (
+          <View style={styles.fineBox}>
+            <View style={styles.fineHeaderRow}>
+              <Text style={styles.fineLabel}>Cancellation Fine</Text>
+              <Text style={styles.fineValue}>
+                {item.fineStatus === "PENDING"
+                  ? "Pending"
+                  : `₹${Number(item.fineAmount || 0)}`}
+              </Text>
+            </View>
+
+            {item.fineStatus === "PENDING" ? (
+              <Text style={styles.fineHint}>
+                Mitra ne fine abhi finalize nahi kiya hai.
+              </Text>
+            ) : null}
+
+            {item.cancellationReason ? (
+              <Text style={styles.cancelReason}>
+                Reason: {item.cancellationReason}
+              </Text>
+            ) : null}
+          </View>
+        )}
+
+        {isCompleted && (
+          <View
             style={[
-              styles.ratingMiniText,
-              { color: item.isClientRated ? "#059669" : "#D97706" },
+              styles.ratingMiniBadge,
+              {
+                backgroundColor: item.isClientRated ? "#ECFDF5" : "#FEF3C7",
+              },
             ]}
           >
-            {item.isClientRated ? "Client Rated" : "Client Rating Pending"}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+            <Star
+              color={item.isClientRated ? "#059669" : "#D97706"}
+              size={14}
+              fill={item.isClientRated ? "#059669" : "transparent"}
+            />
+            <Text
+              style={[
+                styles.ratingMiniText,
+                { color: item.isClientRated ? "#059669" : "#D97706" },
+              ]}
+            >
+              {item.isClientRated ? "Client Rated" : "Client Rating Pending"}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -211,6 +246,8 @@ export default function WorkerHistory() {
           </Text>
         </View>
       )}
+
+      <WorkerBottomNav active="jobs" />
     </SafeAreaView>
   );
 }
@@ -238,7 +275,7 @@ const styles = StyleSheet.create({
 
   listContent: {
     padding: 20,
-    paddingBottom: 50,
+    paddingBottom: 28,
   },
 
   summaryCard: {
@@ -342,6 +379,47 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#4B5563",
     fontWeight: "700",
+  },
+
+  fineBox: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+
+  fineHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  fineLabel: {
+    color: "#7F1D1D",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  fineValue: {
+    color: "#DC2626",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+
+  fineHint: {
+    marginTop: 6,
+    color: "#991B1B",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  cancelReason: {
+    marginTop: 6,
+    color: "#6B7280",
+    fontSize: 12,
+    fontWeight: "600",
   },
 
   ratingMiniBadge: {

@@ -27,6 +27,90 @@ import {
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
+const parseIdList = (value: any): number[] => {
+  try {
+    return JSON.parse(value || "[]").map(Number);
+  } catch {
+    return [];
+  }
+};
+
+const isTrackableActiveBooking = (booking: any) => {
+  if (!booking) return false;
+
+  // Dashboard par sirf genuinely active bookings dikhni chahiye.
+  if (!["ASSIGNED", "IN_PROGRESS"].includes(String(booking.status))) {
+    return false;
+  }
+
+  const workers = Array.isArray(booking.workers) ? booking.workers : [];
+  const cancelledIds = parseIdList(booking.cancelledWorkerIds);
+
+  // ASSIGNED/IN_PROGRESS status stale reh sakta hai even after every worker
+  // has cancelled. In that case booking ko active banner me mat dikhana.
+  if (workers.length > 0) {
+    const activeWorkers = workers.filter(
+      (worker: any) => !cancelledIds.includes(Number(worker.id)),
+    );
+    return activeWorkers.length > 0;
+  }
+
+  return false;
+};
+
+const getBookingStatusLabel = (booking: any) => {
+  if (!booking) return "No active booking";
+
+  if (booking.status === "IN_PROGRESS") return "Work in progress";
+  if (booking.status === "COMPLETED" && !booking.isRated) {
+    return "Completed · Rating pending";
+  }
+
+  if (booking.status === "ASSIGNED") {
+    const cancelledIds = parseIdList(booking.cancelledWorkerIds);
+    const arrivedIds = parseIdList(booking.arrivedWorkerIds);
+    const activeWorkers = (booking.workers || []).filter(
+      (worker: any) => !cancelledIds.includes(Number(worker.id)),
+    );
+    const arrivedCount = activeWorkers.filter((worker: any) =>
+      arrivedIds.includes(Number(worker.id)),
+    ).length;
+
+    return arrivedCount > 0 ? "Workers arriving" : "Workers assigned";
+  }
+
+  return String(booking.status || "Active").replace(/_/g, " ");
+};
+
+const getBookingStatusSubtitle = (booking: any) => {
+  if (!booking) return "";
+
+  if (booking.status === "IN_PROGRESS") {
+    return "Your booking is currently in progress.";
+  }
+
+  if (booking.status === "COMPLETED" && !booking.isRated) {
+    return "Work completed. Please rate your workers.";
+  }
+
+  if (booking.status === "ASSIGNED") {
+    const cancelledIds = parseIdList(booking.cancelledWorkerIds);
+    const arrivedIds = parseIdList(booking.arrivedWorkerIds);
+    const activeWorkers = (booking.workers || []).filter(
+      (worker: any) => !cancelledIds.includes(Number(worker.id)),
+    );
+    const arrivedCount = activeWorkers.filter((worker: any) =>
+      arrivedIds.includes(Number(worker.id)),
+    ).length;
+
+    return arrivedCount > 0
+      ? `${arrivedCount}/${activeWorkers.length} worker(s) arrived.`
+      : `${activeWorkers.length || booking.workerCount || 0} worker(s) assigned.`;
+  }
+
+  return "Track your current booking.";
+};
+
 export default function CustomerDashboard() {
   const [userData, setUserData] = useState<any>(null);
   const [activeBooking, setActiveBooking] = useState<any>(null);
@@ -69,8 +153,13 @@ export default function CustomerDashboard() {
           const activeRes = await axios.get(
             `${API_URL}/user/current-booking/${parsedData.id}`,
           );
-          if (activeRes.data.success) {
+          if (
+            activeRes.data.success &&
+            isTrackableActiveBooking(activeRes.data.booking)
+          ) {
             setActiveBooking(activeRes.data.booking);
+          } else {
+            setActiveBooking(null);
           }
         } catch (e) {
           console.log("No active booking");
@@ -145,10 +234,10 @@ export default function CustomerDashboard() {
                 <Clock color="#10B981" size={24} />
                 <View style={{ marginLeft: 15, flex: 1 }}>
                   <Text style={styles.activeBannerTitle}>
-                    1 Active Booking In-Progress
+                    Booking #{activeBooking.id} · {getBookingStatusLabel(activeBooking)}
                   </Text>
                   <Text style={styles.activeBannerSub}>
-                    Workers are on-site.
+                    {getBookingStatusSubtitle(activeBooking)}
                   </Text>
                 </View>
               </View>

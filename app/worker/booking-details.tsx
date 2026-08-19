@@ -94,6 +94,8 @@ export default function WorkerBookingDetails() {
 
   const isClientRated = booking.isClientRated || false;
   const clientRating = booking.clientRating || null;
+  const isCancelled = booking.status === "CANCELLED";
+  const isCompleted = booking.status === "COMPLETED";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -118,14 +120,14 @@ export default function WorkerBookingDetails() {
             styles.statusBanner,
             {
               backgroundColor:
-                booking.status === "COMPLETED" ? "#ECFDF5" : "#FEF3C7",
+                isCompleted ? "#ECFDF5" : isCancelled ? "#FEF2F2" : "#FEF3C7",
             },
           ]}
         >
           <Text
             style={[
               styles.statusText,
-              { color: booking.status === "COMPLETED" ? "#059669" : "#D97706" },
+              { color: isCompleted ? "#059669" : isCancelled ? "#DC2626" : "#D97706" },
             ]}
           >
             Status: {booking.status}
@@ -161,11 +163,42 @@ export default function WorkerBookingDetails() {
           <View style={styles.detailRow}>
             <IndianRupee color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Your Earning</Text>
+              <Text style={styles.detailLabel}>
+                {isCancelled ? "Original Job Share" : "Your Earning"}
+              </Text>
               <Text style={styles.detailValue}>₹{getAmount()}</Text>
             </View>
           </View>
         </View>
+
+        {isCancelled && (
+          <View style={styles.fineCard}>
+            <View style={styles.fineTitleRow}>
+              <Text style={styles.fineCardTitle}>Cancellation Fine</Text>
+              <Text style={styles.fineAmount}>
+                {booking.fineStatus === "PENDING"
+                  ? "Pending"
+                  : `₹${Number(booking.fineAmount || 0)}`}
+              </Text>
+            </View>
+
+            {booking.fineStatus === "PENDING" ? (
+              <Text style={styles.fineDescription}>
+                Mitra ne fine amount abhi finalize nahi kiya hai.
+              </Text>
+            ) : (
+              <Text style={styles.fineDescription}>
+                Ye Mitra ke final conflict decision ke hisab se fine hai.
+              </Text>
+            )}
+
+            {booking.cancellationReason ? (
+              <Text style={styles.fineReason}>
+                Reason: {booking.cancellationReason}
+              </Text>
+            ) : null}
+          </View>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Client Details</Text>
@@ -211,7 +244,8 @@ export default function WorkerBookingDetails() {
           </View>
         </View>
 
-        <View style={styles.ratingSection}>
+        {isCompleted && (
+          <View style={styles.ratingSection}>
           {isClientRated ? (
             <>
               <Text style={styles.ratingMsg}>
@@ -278,7 +312,8 @@ export default function WorkerBookingDetails() {
               </TouchableOpacity>
             </>
           )}
-        </View>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -413,6 +448,49 @@ const styles = StyleSheet.create({
     color: "#059669",
     fontWeight: "800",
     marginLeft: 8,
+  },
+
+  fineCard: {
+    backgroundColor: "#FEF2F2",
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+
+  fineTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+
+  fineCardTitle: {
+    color: "#7F1D1D",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+
+  fineAmount: {
+    color: "#DC2626",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+
+  fineDescription: {
+    color: "#991B1B",
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
+
+  fineReason: {
+    marginTop: 8,
+    color: "#6B7280",
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
   },
 
   ratingSection: {

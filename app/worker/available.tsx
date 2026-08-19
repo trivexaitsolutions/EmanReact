@@ -362,16 +362,18 @@ export default function WorkerAvailable() {
         />
         <BottomNavItem
           icon={<BriefcaseBusiness color="#6B7280" size={26} strokeWidth={2} />}
-          label="Bookings"
+          label="Jobs"
           onPress={() => router.push("/worker/history")}
         />
         <BottomNavItem
           icon={<Wallet color="#6B7280" size={26} strokeWidth={2} />}
-          label="Earnings"
+          label="Wallet"
+          onPress={() => router.push("/worker/wallet")}
         />
         <BottomNavItem
           icon={<CircleUserRound color="#6B7280" size={26} strokeWidth={2} />}
           label="Profile"
+          onPress={() => router.push("/worker/profile")}
         />
       </View>
     </SafeAreaView>

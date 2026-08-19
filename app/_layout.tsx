@@ -142,6 +142,8 @@ export default function RootLayout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="worker/history" options={{ headerShown: false }} />
+      <Stack.Screen name="worker/wallet" options={{ headerShown: false }} />
+      <Stack.Screen name="worker/profile" options={{ headerShown: false }} />
       <Stack.Screen
         name="worker/booking-details"
         options={{ headerShown: false }}

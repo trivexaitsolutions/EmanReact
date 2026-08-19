@@ -255,6 +255,18 @@ export default function ActiveBooking() {
     });
   };
 
+  const handleNewBooking = async () => {
+    try {
+      // Cancellation ke baad hamesha latest multi-step booking flow start karo.
+      // Purana draft remove karne se previous booking selection carry forward nahi hogi.
+      await AsyncStorage.removeItem("newBookingDraft");
+      router.replace("/user/book-worker-step1");
+    } catch (error) {
+      console.log("New booking draft reset error", error);
+      router.replace("/user/book-worker-step1");
+    }
+  };
+
   const handleSubmitIssue = async () => {
     if (!selectedIssueReason) {
       alert("Please select cancellation reason.");
@@ -617,7 +629,7 @@ export default function ActiveBooking() {
 
               <TouchableOpacity
                 style={styles.newBookingBtn}
-                onPress={() => router.replace("/user/create-booking")}
+                onPress={handleNewBooking}
               >
                 <Text style={styles.newBookingBtnText}>New Booking</Text>
               </TouchableOpacity>
@@ -642,7 +654,7 @@ export default function ActiveBooking() {
 
               <TouchableOpacity
                 style={styles.newBookingBtn}
-                onPress={() => router.replace("/user/create-booking")}
+                onPress={handleNewBooking}
               >
                 <Text style={styles.newBookingBtnText}>New Booking</Text>
               </TouchableOpacity>
