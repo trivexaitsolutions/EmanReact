@@ -1,7 +1,9 @@
 // app/_layout.tsx
 import * as Notifications from "expo-notifications";
+import { StatusBar } from "expo-status-bar";
 import { Stack, router } from "expo-router";
 import { useEffect } from "react";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -39,7 +41,6 @@ export default function RootLayout() {
         return;
       }
 
-      // Old fallback: agar kahi purana DUTY_COMPLETED action aaya to dashboard par bhej do
       if (data.action === "DUTY_COMPLETED") {
         setTimeout(() => {
           router.replace("/worker/dashboard");
@@ -79,11 +80,7 @@ export default function RootLayout() {
         const data = notification.request.content.data;
         console.log("Notification received:", data);
 
-        // Availability screen already polls for a newly paid duty. Auto-pushing
-        // here as well could mount a second Active Duty screen and leave its
-        // poller alive behind the visible screen.
         if (data?.action === "OPEN_ACTIVE_DUTY") return;
-
         handleNotificationData(data);
       },
     );
@@ -95,59 +92,64 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }} edges={["top"]}>
+        <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
 
-      {/* User Screens */}
-      <Stack.Screen name="user/login" options={{ headerShown: false }} />
-      <Stack.Screen name="user/dashboard" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="user/create-booking"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="user/active-booking"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="user/booking-details"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen name="user/history" options={{ headerShown: false }} />
-      <Stack.Screen name="user/rating" options={{ headerShown: false }} />
-      <Stack.Screen name="user/profile" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="user/manage-addresses"
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
+          {/* User Screens */}
+          <Stack.Screen name="user/login" options={{ headerShown: false }} />
+          <Stack.Screen name="user/dashboard" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="user/create-booking"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="user/active-booking"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="user/booking-details"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="user/history" options={{ headerShown: false }} />
+          <Stack.Screen name="user/rating" options={{ headerShown: false }} />
+          <Stack.Screen name="user/profile" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="user/manage-addresses"
+            options={{ headerShown: false, animation: "slide_from_right" }}
+          />
 
-      {/* Worker Screens */}
-      <Stack.Screen name="worker/login" options={{ headerShown: false }} />
-      <Stack.Screen name="worker/dashboard" options={{ headerShown: false }} />
-      <Stack.Screen name="worker/available" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="worker/active-duty"
-        options={{ headerShown: false, animation: "slide_from_bottom" }}
-      />
-      <Stack.Screen
-        name="worker/cancelled-duty"
-        options={{ headerShown: false, animation: "slide_from_bottom" }}
-      />
-      <Stack.Screen
-        name="worker/duty-in-progress"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="worker/rate-client"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen name="worker/history" options={{ headerShown: false }} />
-      <Stack.Screen name="worker/wallet" options={{ headerShown: false }} />
-      <Stack.Screen name="worker/profile" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="worker/booking-details"
-        options={{ headerShown: false }}
-      />
-    </Stack>
+          {/* Worker Screens */}
+          <Stack.Screen name="worker/login" options={{ headerShown: false }} />
+          <Stack.Screen name="worker/dashboard" options={{ headerShown: false }} />
+          <Stack.Screen name="worker/available" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="worker/active-duty"
+            options={{ headerShown: false, animation: "slide_from_bottom" }}
+          />
+          <Stack.Screen
+            name="worker/cancelled-duty"
+            options={{ headerShown: false, animation: "slide_from_bottom" }}
+          />
+          <Stack.Screen
+            name="worker/duty-in-progress"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="worker/rate-client"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="worker/history" options={{ headerShown: false }} />
+          <Stack.Screen name="worker/wallet" options={{ headerShown: false }} />
+          <Stack.Screen name="worker/profile" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="worker/booking-details"
+            options={{ headerShown: false }}
+          />
+        </Stack>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
