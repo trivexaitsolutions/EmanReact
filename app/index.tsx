@@ -1,14 +1,18 @@
-// Replace your entire app/index.tsx with this:
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  Image,
+  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+
+const { width } = Dimensions.get("window");
 
 export default function RoleSelectionScreen() {
   const [isChecking, setIsChecking] = useState(true);
@@ -52,55 +56,89 @@ export default function RoleSelectionScreen() {
 
   if (isChecking) {
     return (
-      <View style={[styles.container, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color="#10B981" />
+      <View style={[styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#111" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>E-man</Text>
-      <Text style={styles.subtitle}>Choose your profile to continue</Text>
+    <SafeAreaView style={styles.container}>
+      {/* Top Worker Card */}
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => router.push("/worker/login")}
+      >
+        <Image
+          source={require("../assets/images/worker-icon.png")} // Change file name if needed
+          style={styles.image}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.cardButton, { backgroundColor: "#10B981" }]}
-          onPress={() => router.push("/worker/login")}
-        >
-          <Text style={styles.cardTitle}>I am a Worker</Text>
-          <Text style={styles.cardSub}>Find daily jobs and manage duties</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.cardButton, { backgroundColor: "#3B82F6" }]}
-          onPress={() => router.push("/user/login")}
-        >
-          <Text style={styles.cardTitle}>I am a User</Text>
-          <Text style={styles.cardSub}>Hire skilled daily-wage labor</Text>
-        </TouchableOpacity>
+      {/* Center Text */}
+      <View style={styles.textContainer}>
+        <Text style={styles.loginText}>LOGIN</Text>
       </View>
-    </View>
+
+      {/* Bottom User/Company Card */}
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => router.push("/user/login")}
+      >
+        <Image
+          source={require("../assets/images/factory-icon.png")} // Change file name if needed
+          style={styles.image}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
-    backgroundColor: "#fff",
-    padding: 24,
+    backgroundColor: "#FFD23F",
     justifyContent: "center",
     alignItems: "center",
   },
-  title: { fontSize: 42, fontWeight: "900", color: "#111", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#666", marginBottom: 48 },
-  buttonContainer: { width: "100%", gap: 20 },
-  cardButton: { padding: 24, borderRadius: 16, alignItems: "flex-start" },
-  cardTitle: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#FFD23F", // Client's requested yellow background
+    justifyContent: "space-evenly",
+    alignItems: "center",
+    paddingVertical: 50,
   },
-  cardSub: { color: "#fff", fontSize: 14, opacity: 0.9 },
+  card: {
+    width: width * 0.65,
+    height: width * 0.65,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24, // Modern rounded corners
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    // Premium iOS Shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    // Premium Android Shadow
+    elevation: 10,
+  },
+  image: {
+    width: "85%",
+    height: "85%",
+  },
+  textContainer: {
+    marginVertical: 10,
+  },
+  loginText: {
+    fontSize: 48,
+    fontWeight: "900",
+    color: "#1A1A1A",
+    letterSpacing: 3, // Slight spacing for premium look
+  },
 });

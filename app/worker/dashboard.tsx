@@ -2,20 +2,19 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack, useFocusEffect } from "expo-router";
 import {
-  BriefcaseBusiness,
-  CalendarX,
+  CheckCircle2,
   ChevronRight,
   Clock3,
-  LogOut,
-  MousePointerClick,
-  Wallet,
+  LogOut
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -40,7 +39,6 @@ type OperationalStatus = {
 export default function WorkerDashboard() {
   const [workerData, setWorkerData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHolding, setIsHolding] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
   const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -54,23 +52,19 @@ export default function WorkerDashboard() {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
-
     if (holdIntervalRef.current) {
       clearInterval(holdIntervalRef.current);
       holdIntervalRef.current = null;
     }
   }, []);
 
-  const fetchDashboardData = useCallback(async (silent = false) => {
+  const fetchDashboardData = useCallback(async () => {
     try {
-      if (silent) setIsRefreshing(true);
-
       const session = await AsyncStorage.getItem("workerSession");
       if (!session) {
         router.replace("/");
         return;
       }
-
       const parsedData = JSON.parse(session);
       const response = await axios.get(
         `${API_URL}/worker/dashboard/${parsedData.id}`,
@@ -81,18 +75,14 @@ export default function WorkerDashboard() {
       }
     } catch (error) {
       console.log("Dashboard fetch error", error);
-      if (!silent) {
-        Alert.alert("Unable to load", "Dashboard data load nahi ho paya.");
-      }
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      void fetchDashboardData(true);
+      void fetchDashboardData();
       return clearHoldTimers;
     }, [clearHoldTimers, fetchDashboardData]),
   );
@@ -106,10 +96,8 @@ export default function WorkerDashboard() {
     try {
       const session = await AsyncStorage.getItem("workerSession");
       if (!session) return;
-
       const parsedData = JSON.parse(session);
       const token = await registerForPushNotificationsAsync();
-
       if (token) {
         await axios.post(`${API_URL}/worker/save-push-token`, {
           workerId: parsedData.id,
@@ -130,12 +118,7 @@ export default function WorkerDashboard() {
       if (!session) return;
 
       const parsedData = JSON.parse(session);
-      const payload: {
-        workerId: number;
-        status: boolean;
-        availabilityType: "FULL_DAY" | "SHORT_PERIOD";
-        availabilityHours?: number;
-      } = {
+      const payload: any = {
         workerId: parsedData.id,
         status: true,
         availabilityType,
@@ -149,15 +132,11 @@ export default function WorkerDashboard() {
         `${API_URL}/worker/update-status`,
         payload,
       );
-
-      if (!response.data.success) return;
-
-      router.replace("/worker/available");
+      if (response.data.success) {
+        router.replace("/worker/available");
+      }
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error?.response?.data?.message || "Server se connect nahi ho paya.",
-      );
+      Alert.alert("Error", error?.response?.data?.message || "Server error.");
     }
   };
 
@@ -165,8 +144,6 @@ export default function WorkerDashboard() {
     workerData?.operationalStatus || {
       type: "IDLE",
       label: "Not in pool",
-      actionLabel: "Join Full Day Pool",
-      returnScreen: null,
     };
 
   const isIdle = operationalStatus.type === "IDLE";
@@ -174,31 +151,25 @@ export default function WorkerDashboard() {
   const isBooking = operationalStatus.type === "BOOKING";
 
   const returnToCurrentWork = () => {
-    if (isPool) {
-      router.replace("/worker/available");
-      return;
-    }
-
-    if (isBooking) {
-      if (operationalStatus.returnScreen === "duty-in-progress") {
+    if (isPool) router.replace("/worker/available");
+    else if (isBooking) {
+      if (operationalStatus.returnScreen === "duty-in-progress")
         router.replace("/worker/duty-in-progress");
-      } else {
-        router.replace("/worker/active-duty");
-      }
+      else router.replace("/worker/active-duty");
     }
   };
 
   const startFullDayHold = () => {
     if (!isIdle || isHolding) return;
-
     holdCompletedRef.current = false;
     setIsHolding(true);
     setHoldProgress(0);
 
-    let progress = 0;
+    const holdStartedAt = Date.now();
     holdIntervalRef.current = setInterval(() => {
-      progress += 1;
-      if (progress <= 100) setHoldProgress(progress);
+      const elapsedMs = Date.now() - holdStartedAt;
+      const progress = Math.min(100, (elapsedMs / 3000) * 100);
+      setHoldProgress(progress);
     }, 30);
 
     holdTimerRef.current = setTimeout(async () => {
@@ -212,17 +183,16 @@ export default function WorkerDashboard() {
 
   const cancelFullDayHold = () => {
     if (!isIdle || holdCompletedRef.current) return;
-
     clearHoldTimers();
     setIsHolding(false);
     setHoldProgress(0);
   };
 
   const handleLogout = () => {
-    Alert.alert("Logout", "Logout karein?", [
-      { text: "Nahi", style: "cancel" },
+    Alert.alert("Logout", "Are you sure?", [
+      { text: "No", style: "cancel" },
       {
-        text: "Haan",
+        text: "Yes",
         style: "destructive",
         onPress: async () => {
           await AsyncStorage.clear();
@@ -235,196 +205,205 @@ export default function WorkerDashboard() {
   if (isLoading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#087C49" />
-        <Text style={styles.loaderText}>Loading your dashboard...</Text>
+        <ActivityIndicator size="large" color="#10B981" />
       </View>
     );
   }
 
+  // --- MOCK FALLBACKS FOR DEMO UI ---
   const firstName = workerData?.name?.split(" ")[0] || "Worker";
-  const walletBalance = Number(workerData?.walletBalance || 0);
-  const dateObj = new Date();
-  const dateLabel = `${dateObj.toLocaleDateString("en-US", { weekday: "long" })}, ${dateObj.getDate()} ${dateObj.toLocaleDateString("en-US", { month: "long" })}`;
+  const profilePic = workerData?.photoUrl || null;
+  const ratingScore = workerData?.rating?.averageRating || 4.2; // Demo Data
+  const nakasList =
+    workerData?.nakas?.length > 0
+      ? workerData.nakas
+      : [
+          { name: "Ambernath (E)" },
+          { name: "Ambernath (W)" },
+          { name: "Ladi Naka" },
+        ]; // Demo Data
+  const validityDate = workerData?.validity || "01/07/2024 - 01/07/2025"; // Demo Data
 
-  const primaryPrompt = isBooking
-    ? `Booking #${operationalStatus.bookingId || ""}`
-    : isPool
-      ? "You are already available today"
-      : "Hold 3 sec to go Available";
+  // Gauge Logic
+  let ratingLabel = "Excellent";
+  let ratingColor = "#10B981";
+  let indicatorPosition = "85%";
 
-  const primaryTitle = isBooking
-    ? "Return to\nBooking"
-    : isPool
-      ? "Return to\nPool"
-      : "Full Day\nPool";
-
-  const primarySubtitle = isBooking
-    ? operationalStatus.label
-    : isPool
-      ? "Continue waiting for work"
-      : "Be visible for full day work";
-
-  const circleText = isIdle
-    ? isHolding
-      ? `${holdProgress}%`
-      : "Hold to\nActivate"
-    : "Tap to\nReturn";
+  if (ratingScore < 2) {
+    ratingLabel = "Poor";
+    ratingColor = "#EF4444";
+    indicatorPosition = "12%";
+  } else if (ratingScore < 3.5) {
+    ratingLabel = "Fair";
+    ratingColor = "#F97316";
+    indicatorPosition = "37%";
+  } else if (ratingScore < 4.5) {
+    ratingLabel = "Good";
+    ratingColor = "#EAB308";
+    indicatorPosition = "62%";
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.content}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerTextGroup}>
-            <Text style={styles.greeting}>
-              Good Morning, <Text style={styles.greetingName}>{firstName}</Text>{" "}
-              👋
-            </Text>
-            <Text style={styles.dateText}>{dateLabel}</Text>
+      {/* Fixed Logout Top Bar */}
+      <View style={styles.topNav}>
+        <Text style={styles.navTitle}>Dashboard</Text>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+          <LogOut color="#EF4444" size={20} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        bounces={false}
+        scrollEnabled={!isHolding}
+      >
+        {/* 1. Header Banner */}
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>WANT TO EARN?</Text>
+          <Text style={styles.bannerTextBold}>BE READY</Text>
+        </View>
+
+        {/* 2. Profile & Rating */}
+        <View style={styles.profileRow}>
+          <View style={styles.avatarContainer}>
+            {profilePic ? (
+              <Image source={{ uri: profilePic }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarInitial}>{firstName.charAt(0)}</Text>
+              </View>
+            )}
           </View>
-          <TouchableOpacity
-            accessibilityLabel="Log out"
-            onPress={handleLogout}
-            style={styles.logoutButton}
-          >
-            <LogOut color="#6B7280" size={22} strokeWidth={2} />
-          </TouchableOpacity>
+
+          <View style={styles.ratingContainer}>
+            <View style={styles.ratingHeader}>
+              <Text style={styles.ratingTitle}>Performance</Text>
+              <Text style={[styles.ratingLabel, { color: ratingColor }]}>
+                {ratingLabel} ({ratingScore})
+              </Text>
+            </View>
+
+            {/* Custom Modern Gauge */}
+            <View style={styles.gaugeTrack}>
+              <View
+                style={[styles.gaugeSegment, { backgroundColor: "#EF4444" }]}
+              />
+              <View
+                style={[styles.gaugeSegment, { backgroundColor: "#F97316" }]}
+              />
+              <View
+                style={[styles.gaugeSegment, { backgroundColor: "#EAB308" }]}
+              />
+              <View
+                style={[styles.gaugeSegment, { backgroundColor: "#10B981" }]}
+              />
+
+              {/* Pointer */}
+              <View
+                style={[styles.gaugePointer, { left: indicatorPosition }]}
+              />
+            </View>
+            <View style={styles.gaugeLabels}>
+              <Text style={styles.gLabel}>Poor</Text>
+              <Text style={styles.gLabel}>Exc</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.statusStrip}>
-          <View
-            style={[
-              styles.statusDot,
-              isBooking && styles.statusDotBooking,
-              isIdle && styles.statusDotIdle,
-            ]}
-          />
-          <Text style={styles.statusLabel}>
-            Status: <Text style={styles.statusValue}>{operationalStatus.label}</Text>
-          </Text>
-          {isRefreshing ? (
-            <ActivityIndicator size="small" color="#087C49" />
-          ) : null}
+        {/* 3. Decided Nakas */}
+        <View style={styles.nakaCard}>
+          <View style={styles.cardHeader}>
+            <CheckCircle2 color="#047857" size={20} />
+            <Text style={styles.nakaTitle}>MY DECIDED NAKA</Text>
+          </View>
+          <View style={styles.nakaList}>
+            {nakasList.map((naka: any, index: number) => (
+              <Text key={index} style={styles.nakaItem}>
+                <Text style={styles.nakaBullet}>{index + 1}.</Text> {naka.name}
+              </Text>
+            ))}
+          </View>
         </View>
 
+        {/* 5. 3 Second Long Press Button */}
         <TouchableOpacity
-          activeOpacity={0.92}
+          activeOpacity={0.9}
           delayLongPress={0}
           onPress={isIdle ? undefined : returnToCurrentWork}
           onPressIn={isIdle ? startFullDayHold : undefined}
           onPressOut={isIdle ? cancelFullDayHold : undefined}
-          style={styles.fullDayCard}
+          style={styles.longPressContainer}
         >
-          <View style={styles.fullDayTextSide}>
-            <Text style={styles.fullDayPrompt}>{primaryPrompt}</Text>
-            <Text style={styles.fullDayTitle}>{primaryTitle}</Text>
-            <Text style={styles.fullDaySubtitle}>{primarySubtitle}</Text>
-          </View>
+          <View style={styles.longPressBackground}>
+            {/* Progress Fill */}
+            {isHolding && (
+              <View
+                style={[styles.longPressFill, { width: `${holdProgress}%` }]}
+              />
+            )}
 
-          <View style={styles.holdCircleContainer}>
-            <View
-              style={[
-                styles.holdCircleBorder,
-                isHolding && {
-                  borderColor: `rgba(255, 255, 255, ${0.3 + (holdProgress / 100) * 0.7})`,
-                },
-              ]}
-            >
-              <View style={styles.holdCircleIndicator} />
-              <MousePointerClick color="#FFFFFF" size={32} strokeWidth={2} />
-              <Text style={styles.holdCircleText}>{circleText}</Text>
+            <View style={styles.longPressContent}>
+              <View style={styles.longPressCircle}>
+                <View style={styles.longPressInnerCircle} />
+              </View>
+              <Text style={styles.longPressText}>
+                {isIdle
+                  ? isHolding
+                    ? "Hold to Activate..."
+                    : "3 second Long Press"
+                  : "Return to Work"}
+              </Text>
             </View>
           </View>
         </TouchableOpacity>
 
+        {/* 6. Some Hours Work Button */}
         <TouchableOpacity
-          activeOpacity={isIdle ? 0.88 : 1}
+          activeOpacity={isIdle ? 0.8 : 1}
           disabled={!isIdle}
           onPress={() => setIsSlotModalOpen(true)}
-          style={[styles.rowCard, !isIdle && styles.rowCardDisabled]}
+          style={[styles.hoursButton, !isIdle && styles.disabledOption]}
         >
-          <View style={styles.lightIconContainer}>
-            <Clock3 color="#087C49" size={26} strokeWidth={2.2} />
-          </View>
-          <View style={styles.rowCardCopy}>
-            <Text style={styles.rowCardTitle}>Some Hours Work</Text>
-            <Text style={styles.rowCardSubtitle}>
-              {isIdle ? "Quick slots" : "Finish/leave current status first"}
+          <Clock3 color="#10B981" size={22} />
+          <View style={styles.hoursBtnContent}>
+            <Text style={styles.hoursBtnTitle}>Some Hours Work</Text>
+            <Text style={styles.hoursBtnSub}>
+              {isIdle ? "Select short shifts" : "Complete active duty first"}
             </Text>
           </View>
-          <ChevronRight color="#087C49" size={24} strokeWidth={2} />
+          <ChevronRight color="#9CA3AF" size={20} />
         </TouchableOpacity>
-
-        <View style={styles.gridRow}>
-          <QuickAction
-            icon={<BriefcaseBusiness color="#087C49" size={24} strokeWidth={2.2} />}
-            title="My Jobs"
-            subtitle="View booking history"
-            onPress={() => router.push("/worker/history")}
-          />
-          <QuickAction
-            icon={<Wallet color="#087C49" size={24} strokeWidth={2.2} />}
-            title="Wallet"
-            subtitle={`₹${walletBalance.toLocaleString("en-IN")}`}
-            onPress={() => router.push("/worker/wallet")}
-          />
-        </View>
-
-        <TouchableOpacity
-          activeOpacity={0.88}
-          style={styles.rowCardBordered}
-          onPress={isBooking ? returnToCurrentWork : () => router.push("/worker/history")}
-        >
-          <View style={styles.outlineIconContainer}>
-            <CalendarX color="#087C49" size={24} strokeWidth={2.2} />
-          </View>
-          <View style={styles.rowCardCopy}>
-            <Text style={styles.rowCardTitle}>Today</Text>
-            <Text style={styles.rowCardSubtitle}>
-              {isBooking
-                ? `Booking #${operationalStatus.bookingId} · ${operationalStatus.label}`
-                : isPool
-                  ? operationalStatus.label
-                  : "No duty assigned"}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       <WorkerBottomNav active="home" />
 
+      {/* Slots Modal */}
       <Modal
         visible={isSlotModalOpen}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setIsSlotModalOpen(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.slotModal}>
             <View style={styles.modalHandle} />
-            <Text style={styles.slotModalTitle}>Choose your work hours</Text>
-            <Text style={styles.slotModalSubtitle}>
-              Select how long you would like to be available today.
-            </Text>
+            <Text style={styles.slotModalTitle}>Select Work Hours</Text>
 
             {SLOT_OPTIONS.map((hours) => (
               <TouchableOpacity
                 key={hours}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
                 onPress={async () => {
                   setIsSlotModalOpen(false);
                   await handleGoOnline("SHORT_PERIOD", hours);
                 }}
                 style={styles.slotOption}
               >
-                <View>
-                  <Text style={styles.slotOptionTitle}>Next {hours} Hours</Text>
-                  <Text style={styles.slotOptionSubtitle}>
-                    Join the quick-work pool
-                  </Text>
-                </View>
-                <ChevronRight color="#087C49" size={24} />
+                <Text style={styles.slotOptionTitle}>{hours} Hours</Text>
+                <ChevronRight color="#10B981" size={20} />
               </TouchableOpacity>
             ))}
 
@@ -441,133 +420,263 @@ export default function WorkerDashboard() {
   );
 }
 
-function QuickAction({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      activeOpacity={onPress ? 0.85 : 1}
-      onPress={onPress}
-      style={styles.gridCard}
-    >
-      <View style={styles.gridIconContainer}>{icon}</View>
-      <Text style={styles.gridTitle}>{title}</Text>
-      <View style={styles.gridFooter}>
-        <Text numberOfLines={1} style={styles.gridSubtitle}>
-          {subtitle}
-        </Text>
-        <ChevronRight color="#087C49" size={16} strokeWidth={2.5} />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  loader: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  loaderText: { color: "#6B7280", fontSize: 14, fontWeight: "600", marginTop: 12 },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 },
-  headerRow: {
+  container: { flex: 1, backgroundColor: "#F3F4F6" },
+  loader: { flex: 1, alignItems: "center", justifyContent: "center" },
+  topNav: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 15,
+    backgroundColor: "#FFF",
   },
-  headerTextGroup: { flex: 1 },
-  greeting: { color: "#111827", fontSize: 28, fontWeight: "800", letterSpacing: -0.5 },
-  greetingName: { color: "#087C49" },
-  dateText: { color: "#6B7280", fontSize: 15, fontWeight: "500", marginTop: 4 },
-  logoutButton: { padding: 8, backgroundColor: "#F3F4F6", borderRadius: 20 },
-  statusStrip: {
+  navTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
+  logoutBtn: { padding: 8, backgroundColor: "#FEF2F2", borderRadius: 10 },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+
+  // Banner
+  banner: {
+    backgroundColor: "#FFD23F",
+    borderRadius: 16,
+    padding: 18,
+    alignItems: "center",
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  bannerText: {
+    fontSize: 16,
+    color: "#1F2937",
+    fontWeight: "600",
+    letterSpacing: 1,
+  },
+  bannerTextBold: {
+    fontSize: 22,
+    color: "#111827",
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    marginTop: 4,
+  },
+
+  // Profile & Rating
+  profileRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5FAF7",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: "#FFF",
+    padding: 16,
+    borderRadius: 20,
     marginBottom: 20,
   },
-  statusDot: { backgroundColor: "#087C49", borderRadius: 6, height: 10, width: 10, marginRight: 10 },
-  statusDotBooking: { backgroundColor: "#2563EB" },
-  statusDotIdle: { backgroundColor: "#9CA3AF" },
-  statusLabel: { color: "#087C49", fontSize: 15, fontWeight: "600", flex: 1 },
-  statusValue: { color: "#111827", fontWeight: "700" },
-  fullDayCard: {
-    backgroundColor: "#087C49",
-    borderRadius: 24,
-    flexDirection: "row",
-    padding: 24,
-    alignItems: "center",
-    marginBottom: 16,
+  avatarContainer: { marginRight: 16 },
+  avatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#E5E7EB",
   },
-  fullDayTextSide: { flex: 1, paddingRight: 10 },
-  fullDayPrompt: { color: "#E8F5E9", fontSize: 14, fontWeight: "500", marginBottom: 12 },
-  fullDayTitle: { color: "#FFFFFF", fontSize: 32, fontWeight: "800", letterSpacing: -0.5, lineHeight: 38 },
-  fullDaySubtitle: { color: "#E8F5E9", fontSize: 14, fontWeight: "500", marginTop: 12 },
-  holdCircleContainer: { alignItems: "center", justifyContent: "center" },
-  holdCircleBorder: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 4,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+  avatarPlaceholder: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarInitial: { color: "#FFF", fontSize: 28, fontWeight: "bold" },
+  ratingContainer: { flex: 1 },
+  ratingHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  ratingTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
+    textTransform: "uppercase",
+  },
+  ratingLabel: { fontSize: 14, fontWeight: "800" },
+  gaugeTrack: {
+    flexDirection: "row",
+    height: 12,
+    borderRadius: 6,
+    overflow: "hidden",
     position: "relative",
   },
-  holdCircleIndicator: { position: "absolute", top: -4, width: 24, height: 4, backgroundColor: "#FFFFFF", borderRadius: 4 },
-  holdCircleText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600", textAlign: "center", marginTop: 8 },
-  rowCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F5FAF7",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
+  gaugeSegment: { flex: 1 },
+  gaugePointer: {
+    position: "absolute",
+    top: -3,
+    width: 4,
+    height: 18,
+    backgroundColor: "#111",
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: "#FFF",
   },
-  rowCardDisabled: { opacity: 0.55 },
-  rowCardBordered: {
+  gaugeLabels: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderColor: "#F3F4F6",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  gLabel: { fontSize: 10, color: "#9CA3AF", fontWeight: "600" },
+
+  // Nakas
+  nakaCard: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
     borderWidth: 1.5,
     borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
+    padding: 20,
+    marginBottom: 20,
   },
-  lightIconContainer: { backgroundColor: "#E8F5E9", borderRadius: 30, height: 52, width: 52, alignItems: "center", justifyContent: "center" },
-  outlineIconContainer: { backgroundColor: "#FFFFFF", borderColor: "#E8F5E9", borderWidth: 2, borderRadius: 30, height: 52, width: 52, alignItems: "center", justifyContent: "center" },
-  rowCardCopy: { flex: 1, marginLeft: 16 },
-  rowCardTitle: { color: "#111827", fontSize: 18, fontWeight: "700" },
-  rowCardSubtitle: { color: "#6B7280", fontSize: 14, fontWeight: "500", marginTop: 4 },
-  gridRow: { flexDirection: "row", gap: 16, marginBottom: 16 },
-  gridCard: { flex: 1, backgroundColor: "#FFFFFF", borderColor: "#F3F4F6", borderWidth: 1.5, borderRadius: 20, padding: 16 },
-  gridIconContainer: { backgroundColor: "#F5FAF7", borderRadius: 16, height: 48, width: 48, alignItems: "center", justifyContent: "center" },
-  gridTitle: { color: "#111827", fontSize: 18, fontWeight: "700", marginTop: 16 },
-  gridFooter: { flexDirection: "row", alignItems: "center", marginTop: 6 },
-  gridSubtitle: { color: "#6B7280", fontSize: 13, fontWeight: "500", marginRight: 4, flex: 1 },
-  modalOverlay: { backgroundColor: "rgba(0, 0, 0, 0.4)", flex: 1, justifyContent: "flex-end" },
-  slotModal: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 34 },
-  modalHandle: { alignSelf: "center", backgroundColor: "#E5E7EB", borderRadius: 3, height: 5, marginBottom: 24, width: 48 },
-  slotModalTitle: { color: "#111827", fontSize: 22, fontWeight: "800" },
-  slotModalSubtitle: { color: "#6B7280", fontSize: 15, lineHeight: 21, marginBottom: 24, marginTop: 8 },
-  slotOption: { alignItems: "center", backgroundColor: "#F5FAF7", borderColor: "#E8F5E9", borderRadius: 16, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 12, padding: 18 },
-  slotOptionTitle: { color: "#111827", fontSize: 17, fontWeight: "800" },
-  slotOptionSubtitle: { color: "#6B7280", fontSize: 13, fontWeight: "500", marginTop: 4 },
-  cancelButton: { alignItems: "center", borderRadius: 14, marginTop: 8, paddingVertical: 15 },
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  nakaTitle: {
+    color: "#047857",
+    fontSize: 15,
+    fontWeight: "800",
+    marginLeft: 8,
+  },
+  nakaList: { marginTop: 4 },
+  nakaItem: {
+    fontSize: 16,
+    color: "#065F46",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  nakaBullet: { fontWeight: "800", color: "#10B981", marginRight: 5 },
+
+  // Validity
+  validityCard: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+    borderWidth: 1.5,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 30,
+    alignItems: "center",
+  },
+  validityTitle: {
+    color: "#B91C1C",
+    fontSize: 15,
+    fontWeight: "800",
+    marginLeft: 8,
+  },
+  validityDate: {
+    fontSize: 16,
+    color: "#991B1B",
+    fontWeight: "700",
+    marginTop: 8,
+  },
+
+  // Long Press Button
+  longPressContainer: {
+    marginBottom: 16,
+    overflow: "hidden",
+    borderRadius: 100,
+  },
+  longPressBackground: {
+    backgroundColor: "#111827",
+    height: 65,
+    borderRadius: 100,
+    position: "relative",
+    justifyContent: "center",
+  },
+  longPressFill: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "#EF4444",
+    borderRadius: 100,
+  },
+  longPressContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+  },
+  longPressCircle: {
+    width: 45,
+    height: 45,
+    borderRadius: 25,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  longPressInnerCircle: {
+    width: 35,
+    height: 35,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#FFF",
+  },
+  longPressText: {
+    flex: 1,
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+    paddingRight: 45,
+  },
+
+  // Hours Button
+  hoursButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+  },
+  disabledOption: { opacity: 0.6 },
+  hoursBtnContent: { flex: 1, marginLeft: 16 },
+  hoursBtnTitle: { fontSize: 16, fontWeight: "700", color: "#111" },
+  hoursBtnSub: { fontSize: 13, color: "#6B7280", marginTop: 2 },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  slotModal: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  slotModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111",
+    marginBottom: 20,
+  },
+  slotOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  slotOptionTitle: { fontSize: 16, fontWeight: "700", color: "#1F2937" },
+  cancelButton: { marginTop: 10, padding: 15, alignItems: "center" },
   cancelButtonText: { color: "#6B7280", fontSize: 16, fontWeight: "700" },
 });
