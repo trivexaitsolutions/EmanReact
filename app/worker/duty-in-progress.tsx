@@ -2,7 +2,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack } from "expo-router";
-import { CheckCircle, Clock, MapPin } from "lucide-react-native";
+import { CheckCircle, Clock3, MapPin } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -47,28 +47,23 @@ export default function DutyInProgress() {
   };
 
   useEffect(() => {
-    fetchCurrentDuty(false);
+    void fetchCurrentDuty(false);
 
-    // Customer completion ko detect karne ke liye har 3 second status check.
     const statusInterval = setInterval(() => {
-      fetchCurrentDuty(true);
+      void fetchCurrentDuty(true);
     }, 3000);
 
     return () => {
       clearInterval(statusInterval);
       clearMitraHoldTimers();
     };
-    // Screen lifetime poller; request guards prevent overlapping calls.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openClientRating = (bookingId: number) => {
-    if (isRedirectingRef.current) {
-      return;
-    }
+    if (isRedirectingRef.current) return;
 
     isRedirectingRef.current = true;
-
     router.replace({
       pathname: "/worker/rate-client",
       params: {
@@ -86,7 +81,6 @@ export default function DutyInProgress() {
       }
 
       const latestBooking = response.data.booking;
-
       if (latestBooking?.status === "COMPLETED") {
         openClientRating(bookingId);
       }
@@ -121,24 +115,17 @@ export default function DutyInProgress() {
       }
 
       const parsedWorker = JSON.parse(session);
-
       const response = await axios.get(
         `${API_URL}/user/worker/current-duty/${parsedWorker.id}`,
       );
 
       if (response.data.success && response.data.duty) {
         const currentDuty = response.data.duty;
-
         bookingIdRef.current = Number(currentDuty.id);
         setDutyData(currentDuty);
         return;
       }
 
-      /*
-       * Customer ne booking COMPLETED kar di to current-duty API us booking ko
-       * return nahi karegi, kyunki wo sirf ASSIGNED / IN_PROGRESS leti hai.
-       * Isliye last known booking ko separately check karte hain.
-       */
       if (bookingIdRef.current) {
         await checkCompletedBooking(bookingIdRef.current);
         return;
@@ -158,7 +145,6 @@ export default function DutyInProgress() {
     }
   };
 
-  // Timer Logic
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
 
@@ -206,14 +192,12 @@ export default function DutyInProgress() {
             }
 
             const session = await AsyncStorage.getItem("workerSession");
-
             if (!session) {
               Alert.alert("Error", "Worker session missing hai.");
               return;
             }
 
             const parsedWorker = JSON.parse(session);
-
             const response = await axios.post(
               `${API_URL}/user/worker/complete-duty`,
               {
@@ -348,166 +332,211 @@ export default function DutyInProgress() {
   };
 
   if (isLoading) {
-    return <ActivityIndicator size="large" color="#000" style={{ flex: 1 }} />;
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color="#10B981" />
+      </View>
+    );
   }
 
   if (!dutyData) {
     return null;
   }
 
+  const workAddress =
+    dutyData.workLocationText ||
+    dutyData.address?.mapAddress ||
+    dutyData.address?.addressLine ||
+    "Work Location";
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.header}>
-        <View style={styles.liveBadge}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveText}>ON DUTY</Text>
-        </View>
-      </View>
-
       <View style={styles.content}>
-        <Text style={styles.customerName}>
-          {dutyData.customer?.name || "Customer"}
-        </Text>
+        <View style={styles.headerCard}>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>On Duty</Text>
+          </View>
 
-        <View style={styles.row}>
-          <MapPin color="#6B7280" size={16} />
-          <Text style={styles.addressText}>
-            {dutyData.workLocationText ||
-              dutyData.address?.mapAddress ||
-              dutyData.address?.addressLine ||
-              "Work Location"}
+          <Text style={styles.headerName}>
+            {dutyData.customer?.name || "Customer"}
           </Text>
+
+          <View style={styles.locationRow}>
+            <MapPin color="#D1FAE5" size={18} />
+            <Text style={styles.locationText}>{workAddress}</Text>
+          </View>
         </View>
 
         <View style={styles.timerCard}>
-          <Clock color="#10B981" size={40} style={{ marginBottom: 10 }} />
+          <View style={styles.timerIconWrap}>
+            <Clock3 color="#10B981" size={34} />
+          </View>
           <Text style={styles.timerLabel}>Time Elapsed</Text>
           <Text style={styles.timerText}>{formatTime(secondsElapsed)}</Text>
         </View>
 
-        <View style={{ flex: 1 }} />
-
-        <TouchableOpacity
-          style={styles.mitraButton}
-          activeOpacity={0.9}
-          disabled={isConnectingMitra || cancellationRequestedRef.current}
-          onPressIn={startMitraHold}
-          onPressOut={cancelMitraHold}
-        >
-          <View
-            pointerEvents="none"
-            style={[
-              styles.mitraButtonProgress,
-              { width: `${mitraHoldProgress}%` as `${number}%` },
-            ]}
-          />
-          <View style={styles.mitraButtonContent}>
-            {isConnectingMitra ? (
-              <ActivityIndicator color="#B91C1C" size="small" />
-            ) : null}
-            <Text style={styles.mitraButtonText}>Any issue, Connect Mitra</Text>
-            <Text style={styles.mitraButtonHint}>
-              {isConnectingMitra
-                ? "Sending request..."
-                : isHoldingMitra
-                  ? "Keep holding..."
-                  : "Hold for 3 seconds"}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {ENABLE_WORKER_COMPLETE_DUTY && (
+        <View style={styles.footerActions}>
           <TouchableOpacity
-            style={styles.completeBtn}
-            onPress={handleCompleteDuty}
+            style={styles.mitraButton}
+            activeOpacity={0.9}
+            disabled={isConnectingMitra || cancellationRequestedRef.current}
+            onPressIn={startMitraHold}
+            onPressOut={cancelMitraHold}
           >
-            <CheckCircle color="#fff" size={24} style={{ marginRight: 10 }} />
-            <Text style={styles.completeBtnText}>MARK AS COMPLETE</Text>
+            <View
+              pointerEvents="none"
+              style={[
+                styles.mitraButtonProgress,
+                { width: `${mitraHoldProgress}%` as `${number}%` },
+              ]}
+            />
+            <View style={styles.mitraButtonContent}>
+              {isConnectingMitra ? (
+                <ActivityIndicator color="#B91C1C" size="small" />
+              ) : null}
+              <Text style={styles.mitraButtonText}>Any issue, Connect Mitra</Text>
+              <Text style={styles.mitraButtonHint}>
+                {isConnectingMitra
+                  ? "Sending request..."
+                  : isHoldingMitra
+                    ? "Keep holding..."
+                    : "Hold for 3 seconds"}
+              </Text>
+            </View>
           </TouchableOpacity>
-        )}
+
+          {ENABLE_WORKER_COMPLETE_DUTY && (
+            <TouchableOpacity
+              style={styles.completeBtn}
+              onPress={handleCompleteDuty}
+            >
+              <CheckCircle color="#fff" size={22} style={{ marginRight: 10 }} />
+              <Text style={styles.completeBtnText}>Mark as Complete</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F9FAFB" },
-  header: { padding: 20, paddingTop: 50, alignItems: "center" },
+  container: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+  },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  content: {
+    flex: 1,
+    padding: 18,
+    paddingTop: 18,
+  },
+  headerCard: {
+    backgroundColor: "#0B7A55",
+    borderRadius: 28,
+    padding: 20,
+  },
   liveBadge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#ECFDF5",
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#10B981",
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 7,
+    marginBottom: 14,
   },
   liveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: "#10B981",
-    marginRight: 8,
   },
-  liveText: { color: "#10B981", fontWeight: "900", letterSpacing: 1 },
-
-  content: { flex: 1, padding: 20, alignItems: "center" },
-  customerName: {
-    fontSize: 24,
+  liveText: {
+    color: "#047857",
     fontWeight: "900",
-    color: "#111827",
-    marginBottom: 5,
+    fontSize: 12,
   },
-  row: { flexDirection: "row", alignItems: "center", marginBottom: 40 },
-  addressText: { fontSize: 16, color: "#6B7280", marginLeft: 5 },
-
+  headerName: {
+    color: "#FFFFFF",
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: "900",
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: 12,
+  },
+  locationText: {
+    flex: 1,
+    color: "#D1FAE5",
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
   timerCard: {
-    backgroundColor: "#fff",
-    width: "100%",
-    padding: 40,
-    borderRadius: 24,
+    marginTop: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    paddingVertical: 34,
+    paddingHorizontal: 18,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  timerIconWrap: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
   timerLabel: {
-    fontSize: 14,
     color: "#6B7280",
-    fontWeight: "700",
-    textTransform: "uppercase",
+    fontSize: 13,
+    fontWeight: "800",
     letterSpacing: 1,
+    textTransform: "uppercase",
   },
   timerText: {
-    fontSize: 48,
-    fontWeight: "900",
     color: "#111827",
-    marginTop: 5,
+    fontSize: 46,
+    fontWeight: "900",
+    marginTop: 6,
     fontVariant: ["tabular-nums"],
   },
-
+  footerActions: {
+    marginTop: "auto",
+    paddingTop: 18,
+  },
   mitraButton: {
     position: "relative",
     overflow: "hidden",
-    width: "100%",
-    minHeight: 68,
+    minHeight: 72,
+    borderRadius: 20,
     backgroundColor: "#FEF2F2",
     borderWidth: 1,
     borderColor: "#FECACA",
-    borderRadius: 16,
-    alignItems: "center",
     justifyContent: "center",
   },
   mitraButtonProgress: {
     position: "absolute",
     top: 0,
-    bottom: 0,
     left: 0,
+    bottom: 0,
     backgroundColor: "#FECACA",
   },
   mitraButtonContent: {
@@ -515,35 +544,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 12,
   },
   mitraButtonText: {
     color: "#B91C1C",
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "900",
-    letterSpacing: 0.2,
   },
   mitraButtonHint: {
     color: "#991B1B",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
-    marginTop: 3,
+    marginTop: 4,
   },
-
   completeBtn: {
-    backgroundColor: "#000",
+    backgroundColor: "#111827",
     width: "100%",
-    paddingVertical: 20,
-    borderRadius: 16,
+    paddingVertical: 18,
+    borderRadius: 18,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 12,
   },
   completeBtnText: {
-    color: "#fff",
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 1,
+    fontWeight: "900",
   },
 });

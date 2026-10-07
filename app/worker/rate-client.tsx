@@ -1,5 +1,6 @@
 // app/worker/rate-client.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CommonActions } from "@react-navigation/native";
 import axios from "axios";
 import {
   router,
@@ -7,27 +8,18 @@ import {
   useLocalSearchParams,
   useNavigation,
 } from "expo-router";
-import { CommonActions } from "@react-navigation/native";
-import {
-    CheckCircle2,
-    ChevronLeft,
-    MapPin,
-    MessageSquareText,
-    Smile,
-    Star,
-    UserRound,
-} from "lucide-react-native";
+import { CheckCircle2, ChevronLeft, Star, UserRound } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
@@ -47,7 +39,7 @@ export default function RateClientScreen() {
   const [comment, setComment] = useState("");
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [bookingId]);
 
   const loadData = async () => {
@@ -77,11 +69,12 @@ export default function RateClientScreen() {
 
         if (response.data.isRated && response.data.rating) {
           const existing = response.data.rating;
+          const initialRating = existing.rating || 5;
 
-          setRating(existing.rating || 5);
-          setBehaviour(existing.behaviour || 5);
-          setLocationAccuracy(existing.locationAccuracy || 5);
-          setCoordination(existing.coordination || 5);
+          setRating(initialRating);
+          setBehaviour(existing.behaviour || initialRating);
+          setLocationAccuracy(existing.locationAccuracy || initialRating);
+          setCoordination(existing.coordination || initialRating);
           setComment(existing.comment || "");
         }
       }
@@ -94,6 +87,13 @@ export default function RateClientScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleOverallRatingChange = (value: number) => {
+    setRating(value);
+    setBehaviour(value);
+    setLocationAccuracy(value);
+    setCoordination(value);
   };
 
   const submitRating = async () => {
@@ -109,9 +109,9 @@ export default function RateClientScreen() {
         bookingId: Number(bookingId),
         workerId: workerSession.id,
         rating,
-        behaviour,
-        locationAccuracy,
-        coordination,
+        behaviour: behaviour || rating,
+        locationAccuracy: locationAccuracy || rating,
+        coordination: coordination || rating,
         comment: comment.trim(),
       });
 
@@ -122,13 +122,10 @@ export default function RateClientScreen() {
             onPress: () => {
               navigation.dispatch(
                 CommonActions.reset({
-                  index: 1,
+                  index: 0,
                   routes: [
                     {
                       name: "worker/dashboard",
-                    },
-                    {
-                      name: "worker/history",
                     },
                   ],
                 }),
@@ -152,50 +149,23 @@ export default function RateClientScreen() {
     onChange,
   }: {
     value: number;
-    onChange: (rating: number) => void;
+    onChange: (selectedRating: number) => void;
   }) => (
     <View style={styles.starRow}>
       {[1, 2, 3, 4, 5].map((item) => (
         <TouchableOpacity
           key={item}
           onPress={() => onChange(item)}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
           style={styles.starBtn}
         >
           <Star
-            size={32}
+            size={40}
             color="#F59E0B"
             fill={item <= value ? "#F59E0B" : "transparent"}
           />
         </TouchableOpacity>
       ))}
-    </View>
-  );
-
-  const RatingItem = ({
-    icon,
-    title,
-    subTitle,
-    value,
-    onChange,
-  }: {
-    icon: any;
-    title: string;
-    subTitle: string;
-    value: number;
-    onChange: (rating: number) => void;
-  }) => (
-    <View style={styles.ratingItem}>
-      <View style={styles.ratingHeader}>
-        <View style={styles.ratingIcon}>{icon}</View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.ratingTitle}>{title}</Text>
-          <Text style={styles.ratingSub}>{subTitle}</Text>
-        </View>
-        <Text style={styles.ratingValue}>{value}/5</Text>
-      </View>
-
-      <StarSelector value={value} onChange={onChange} />
     </View>
   );
 
@@ -212,8 +182,8 @@ export default function RateClientScreen() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.topBg}>
-        <View style={styles.appBar}>
+      <View style={styles.topSection}>
+        <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() =>
               router.replace({
@@ -223,12 +193,12 @@ export default function RateClientScreen() {
             }
             style={styles.backBtn}
           >
-            <ChevronLeft color="#FFFFFF" size={26} />
+            <ChevronLeft color="#FFFFFF" size={24} />
           </TouchableOpacity>
 
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Rate Client</Text>
-            <Text style={styles.headerSub}>Share your work experience</Text>
+            <Text style={styles.headerSub}>Sirf rating do</Text>
           </View>
         </View>
 
@@ -258,52 +228,25 @@ export default function RateClientScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.mainRatingCard}>
-          <Text style={styles.mainRatingTitle}>Overall Experience</Text>
-          <Text style={styles.mainRatingSub}>
-            Client ke saath kaam karne ka overall experience kaisa tha?
+        <View style={styles.ratingCard}>
+          <Text style={styles.ratingTitle}>How was the client?</Text>
+          <Text style={styles.ratingSub}>
+            Neeche stars par tap karke rating select karo.
           </Text>
 
-          <StarSelector value={rating} onChange={setRating} />
+          <StarSelector value={rating} onChange={handleOverallRatingChange} />
 
-          <Text style={styles.mainRatingScore}>{rating}.0 / 5</Text>
+          <View style={styles.scorePill}>
+            <Text style={styles.scorePillText}>{rating}/5 Rating</Text>
+          </View>
         </View>
 
-        <RatingItem
-          icon={<Smile color="#10B981" size={22} />}
-          title="Client Behaviour"
-          subTitle="Client ka behaviour kaisa tha?"
-          value={behaviour}
-          onChange={setBehaviour}
-        />
-
-        <RatingItem
-          icon={<MapPin color="#10B981" size={22} />}
-          title="Location Accuracy"
-          subTitle="Location clear aur correct thi?"
-          value={locationAccuracy}
-          onChange={setLocationAccuracy}
-        />
-
-        <RatingItem
-          icon={<MessageSquareText color="#10B981" size={22} />}
-          title="Coordination"
-          subTitle="Communication aur coordination kaisa tha?"
-          value={coordination}
-          onChange={setCoordination}
-        />
-
-        <View style={styles.commentCard}>
-          <Text style={styles.commentTitle}>Add Comment</Text>
-          <Text style={styles.commentSub}>Optional feedback</Text>
-
+        <View style={styles.hiddenSection}>
           <TextInput
             value={comment}
             onChangeText={setComment}
-            placeholder="Write something about this client..."
-            placeholderTextColor="#9CA3AF"
-            multiline
-            style={styles.commentInput}
+            placeholder="Optional comment"
+            style={styles.hiddenInput}
           />
         </View>
 
@@ -339,45 +282,43 @@ export default function RateClientScreen() {
           <Text style={styles.skipBtnText}>Skip for now</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 35 }} />
+        <View style={{ height: 28 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F3F4F6" },
-
+  container: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+  },
   loader: {
     flex: 1,
     backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
   },
-
   loaderText: {
     marginTop: 10,
     color: "#6B7280",
     fontSize: 13,
     fontWeight: "700",
   },
-
-  topBg: {
-    backgroundColor: "#047857",
-    paddingBottom: 30,
-    borderBottomLeftRadius: 34,
-    borderBottomRightRadius: 34,
+  topSection: {
+    backgroundColor: "#0B7A55",
+    paddingBottom: 26,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-
-  appBar: {
+  headerRow: {
     paddingTop: 44,
     paddingHorizontal: 18,
-    paddingBottom: 18,
+    paddingBottom: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-
   backBtn: {
     width: 42,
     height: 42,
@@ -386,60 +327,52 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   headerTitle: {
     color: "#FFFFFF",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
   },
-
   headerSub: {
-    color: "#A7F3D0",
+    color: "#D1FAE5",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 2,
   },
-
   clientCard: {
     marginHorizontal: 18,
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
+    borderRadius: 26,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
   },
-
   clientIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 21,
+    width: 58,
+    height: 58,
+    borderRadius: 20,
     backgroundColor: "#ECFDF5",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 13,
   },
-
   clientLabel: {
     fontSize: 11,
     color: "#6B7280",
     fontWeight: "900",
     textTransform: "uppercase",
   },
-
   clientName: {
-    fontSize: 19,
+    fontSize: 22,
     color: "#111827",
     fontWeight: "900",
     marginTop: 2,
   },
-
   clientMeta: {
     fontSize: 12,
     color: "#6B7280",
     fontWeight: "700",
     marginTop: 3,
   },
-
   completedBadge: {
     backgroundColor: "#ECFDF5",
     borderRadius: 18,
@@ -449,166 +382,90 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-
   completedText: {
     color: "#047857",
     fontSize: 11,
     fontWeight: "900",
   },
-
   content: {
     paddingHorizontal: 18,
     paddingTop: 18,
   },
-
-  mainRatingCard: {
-    marginTop: -28,
+  ratingCard: {
+    marginTop: -20,
     backgroundColor: "#FFFFFF",
-    borderRadius: 26,
-    padding: 18,
+    borderRadius: 28,
+    padding: 22,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    marginBottom: 14,
   },
-
-  mainRatingTitle: {
-    fontSize: 20,
+  ratingTitle: {
+    fontSize: 26,
     color: "#111827",
     fontWeight: "900",
+    textAlign: "center",
   },
-
-  mainRatingSub: {
-    fontSize: 13,
+  ratingSub: {
+    fontSize: 14,
     color: "#6B7280",
     fontWeight: "600",
     textAlign: "center",
-    marginTop: 5,
-    lineHeight: 19,
+    marginTop: 7,
+    lineHeight: 20,
   },
-
   starRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 14,
+    marginTop: 18,
+    flexWrap: "wrap",
   },
-
   starBtn: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 5,
   },
-
-  mainRatingScore: {
-    marginTop: 10,
-    color: "#F59E0B",
-    fontSize: 16,
-    fontWeight: "900",
-  },
-
-  ratingItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 14,
-  },
-
-  ratingHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  ratingIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+  scorePill: {
+    marginTop: 16,
     backgroundColor: "#ECFDF5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
   },
-
-  ratingTitle: {
-    fontSize: 15,
-    color: "#111827",
-    fontWeight: "900",
-  },
-
-  ratingSub: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginTop: 2,
-  },
-
-  ratingValue: {
-    color: "#F59E0B",
+  scorePillText: {
+    color: "#047857",
     fontSize: 13,
     fontWeight: "900",
   },
-
-  commentCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 14,
+  hiddenSection: {
+    display: "none",
   },
-
-  commentTitle: {
-    fontSize: 15,
-    color: "#111827",
-    fontWeight: "900",
+  hiddenInput: {
+    height: 0,
+    width: 0,
+    opacity: 0,
   },
-
-  commentSub: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginTop: 2,
-    marginBottom: 11,
-  },
-
-  commentInput: {
-    minHeight: 105,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 18,
-    padding: 14,
-    textAlignVertical: "top",
-    fontSize: 14,
-    color: "#111827",
-    fontWeight: "600",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
   submitBtn: {
     backgroundColor: "#10B981",
-    borderRadius: 20,
-    paddingVertical: 16,
+    borderRadius: 22,
+    paddingVertical: 17,
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 18,
     shadowColor: "#10B981",
     shadowOpacity: 0.22,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
-
   submitBtnText: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "900",
   },
-
   skipBtn: {
-    paddingVertical: 15,
+    paddingVertical: 16,
     alignItems: "center",
   },
-
   skipBtnText: {
     color: "#6B7280",
     fontSize: 13,

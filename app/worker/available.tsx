@@ -1,24 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack } from "expo-router";
-import {
-  Clock3,
-  Power,
-  UsersRound,
-} from "lucide-react-native";
+import { Clock3, Power, UsersRound } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
-import WorkerBottomNav from "../../components/worker-bottom-nav";
 import { API_URL } from "../../constants/api";
 
 export default function WorkerAvailable() {
@@ -49,11 +43,12 @@ export default function WorkerAvailable() {
           remainingSecondsRef.current - 1,
         );
 
-        if (remainingSecondsRef.current === 0) {
-          if (!autoOfflineDoneRef.current) {
-            autoOfflineDoneRef.current = true;
-            stopAvailability(true);
-          }
+        if (
+          remainingSecondsRef.current === 0 &&
+          !autoOfflineDoneRef.current
+        ) {
+          autoOfflineDoneRef.current = true;
+          stopAvailability(true);
         }
       }
     }, 1000);
@@ -236,7 +231,7 @@ export default function WorkerAvailable() {
   if (isLoadingPool) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color="#087C49" />
         <Text style={styles.loaderText}>Loading pool status...</Text>
       </View>
     );
@@ -246,8 +241,9 @@ export default function WorkerAvailable() {
     workerSession?.name || workerSession?.fullName || "Worker";
   const firstName = String(workerFullName).trim().split(" ")[0] || "Worker";
   const { hours, minutes, secs } = formatElapsedTime(elapsedSeconds);
-  const timerValue =
-    hours !== "00" ? `${hours}:${minutes}:${secs}` : `${minutes}:${secs}`;
+  const isHalfDay = poolInfo?.availabilityType === "SHORT_PERIOD";
+  const availabilityTypeLabel = isHalfDay ? "Half Day" : "Full Day";
+  const availabilityHours = Math.max(0, Number(poolInfo?.availabilityHours || 0));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -258,27 +254,40 @@ export default function WorkerAvailable() {
           <Text style={styles.navEyebrow}>WORKER</Text>
           <Text style={styles.navTitle}>Available</Text>
         </View>
+
         <View style={styles.poolBadge}>
           <View style={styles.poolDot} />
           <Text style={styles.poolBadgeText}>In Pool</Text>
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
+      <View style={styles.content}>
         <View style={styles.banner}>
           <Text style={styles.bannerHello}>Hi {firstName}</Text>
           <Text style={styles.bannerTitle}>YOU ARE IN POOL</Text>
           <Text style={styles.bannerSub}>Stay ready for your next job</Text>
         </View>
 
+        <View style={styles.availabilityCard}>
+          <View>
+            <Text style={styles.availabilityLabel}>AVAILABILITY TYPE</Text>
+            <Text style={styles.availabilityValue}>{availabilityTypeLabel}</Text>
+          </View>
+
+          {isHalfDay && (
+            <View style={styles.hoursBadge}>
+              <Clock3 color="#087C49" size={18} strokeWidth={2.5} />
+              <Text style={styles.hoursBadgeText}>
+                {availabilityHours} {availabilityHours === 1 ? "Hour" : "Hours"}
+              </Text>
+            </View>
+          )}
+        </View>
+
         <View style={styles.timerCard}>
           <View style={styles.timerHeaderRow}>
             <View style={styles.timerIconWrap}>
-              <UsersRound color="#047857" size={24} strokeWidth={2.5} />
+              <UsersRound color="#087C49" size={24} strokeWidth={2.5} />
             </View>
             <View style={styles.timerHeaderText}>
               <Text style={styles.timerLabelTop}>POOL TIME</Text>
@@ -292,18 +301,21 @@ export default function WorkerAvailable() {
               numberOfLines={1}
               style={[styles.timerValue, isNarrow && styles.timerValueNarrow]}
             >
-              {timerValue}
+              {hours}:{minutes}:{secs}
             </Text>
+
             <View style={styles.timerUnits}>
-              {hours !== "00" ? <Text style={styles.timerUnit}>HH</Text> : null}
+              <Text style={styles.timerUnit}>HH</Text>
+              <Text style={styles.timerDivider}>|</Text>
               <Text style={styles.timerUnit}>MM</Text>
+              <Text style={styles.timerDivider}>|</Text>
               <Text style={styles.timerUnit}>SS</Text>
             </View>
           </View>
 
           <View style={styles.startedCard}>
             <View style={styles.startedIcon}>
-              <Clock3 color="#047857" size={18} strokeWidth={2.5} />
+              <Clock3 color="#087C49" size={18} strokeWidth={2.5} />
             </View>
             <View style={styles.startedTextWrap}>
               <Text style={styles.startedLabel}>Pool started</Text>
@@ -312,13 +324,6 @@ export default function WorkerAvailable() {
               </Text>
             </View>
           </View>
-        </View>
-
-        <View style={styles.infoCard}>
-          <View style={styles.infoDot} />
-          <Text style={styles.infoText}>
-            Keep the app active. When a duty is assigned, this screen will open it automatically.
-          </Text>
         </View>
 
         <TouchableOpacity
@@ -330,15 +335,14 @@ export default function WorkerAvailable() {
           {isStopping ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <>
+            <View style={styles.offlineButtonContent}>
               <Power color="#FFFFFF" size={22} strokeWidth={2.5} />
               <Text style={styles.offlineButtonText}>Go Offline</Text>
-            </>
+            </View>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
-      <WorkerBottomNav active="home" />
     </SafeAreaView>
   );
 }
@@ -383,8 +387,8 @@ const styles = StyleSheet.create({
   },
   poolBadge: {
     alignItems: "center",
-    backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
+    backgroundColor: "#EAF7F0",
+    borderColor: "#B7E4CC",
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: "row",
@@ -392,57 +396,93 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   poolDot: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#087C49",
     borderRadius: 5,
     height: 10,
     marginRight: 7,
     width: 10,
   },
   poolBadgeText: {
-    color: "#047857",
+    color: "#087C49",
     fontSize: 13,
     fontWeight: "800",
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 36,
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 18,
   },
   banner: {
     alignItems: "center",
     backgroundColor: "#FFD23F",
     borderRadius: 18,
-    elevation: 3,
-    marginBottom: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    marginBottom: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
   bannerHello: {
-    color: "#374151",
-    fontSize: 14,
+    color: "#4B5563",
+    fontSize: 13,
     fontWeight: "700",
     marginBottom: 3,
   },
   bannerTitle: {
     color: "#111827",
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: "900",
-    letterSpacing: 1.1,
+    letterSpacing: 0.8,
   },
   bannerSub: {
     color: "#4B5563",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 4,
+  },
+  availabilityCard: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#D1FAE5",
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    minHeight: 88,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+  },
+  availabilityLabel: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+  },
+  availabilityValue: {
+    color: "#111827",
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+  hoursBadge: {
+    alignItems: "center",
+    backgroundColor: "#EAF7F0",
+    borderColor: "#B7E4CC",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+  },
+  hoursBadgeText: {
+    color: "#087C49",
+    fontSize: 14,
+    fontWeight: "900",
+    marginLeft: 7,
   },
   timerCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
     elevation: 2,
-    marginBottom: 16,
     padding: 20,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
@@ -455,7 +495,7 @@ const styles = StyleSheet.create({
   },
   timerIconWrap: {
     alignItems: "center",
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "#EAF7F0",
     borderRadius: 14,
     height: 48,
     justifyContent: "center",
@@ -466,7 +506,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   timerLabelTop: {
-    color: "#047857",
+    color: "#087C49",
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0.7,
@@ -479,38 +519,42 @@ const styles = StyleSheet.create({
   },
   timerArea: {
     alignItems: "center",
-    marginBottom: 22,
+    marginBottom: 20,
     marginTop: 24,
   },
   timerValue: {
     color: "#111827",
-    fontSize: 66,
+    fontSize: 58,
     fontVariant: ["tabular-nums"],
     fontWeight: "900",
     includeFontPadding: false,
-    letterSpacing: -2,
+    letterSpacing: -1.5,
   },
   timerValueNarrow: {
-    fontSize: 56,
+    fontSize: 48,
   },
   timerUnits: {
+    alignItems: "center",
     flexDirection: "row",
-    gap: 34,
     justifyContent: "center",
-    marginTop: 2,
+    marginTop: 4,
   },
   timerUnit: {
     color: "#9CA3AF",
     fontSize: 11,
     fontWeight: "800",
-    letterSpacing: 1,
-    minWidth: 28,
+    minWidth: 30,
     textAlign: "center",
+  },
+  timerDivider: {
+    color: "#D1D5DB",
+    fontSize: 12,
+    marginHorizontal: 10,
   },
   startedCard: {
     alignItems: "center",
-    backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
+    backgroundColor: "#EAF7F0",
+    borderColor: "#B7E4CC",
     borderRadius: 16,
     borderWidth: 1,
     flexDirection: "row",
@@ -539,40 +583,22 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginTop: 1,
   },
-  infoCard: {
-    alignItems: "flex-start",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    flexDirection: "row",
-    marginBottom: 18,
-    padding: 15,
-  },
-  infoDot: {
-    backgroundColor: "#10B981",
-    borderRadius: 4,
-    height: 8,
-    marginRight: 10,
-    marginTop: 5,
-    width: 8,
-  },
-  infoText: {
-    color: "#6B7280",
-    flex: 1,
-    fontSize: 12,
-    fontWeight: "600",
-    lineHeight: 18,
-  },
   offlineButton: {
     alignItems: "center",
     backgroundColor: "#111827",
     borderRadius: 16,
-    flexDirection: "row",
     justifyContent: "center",
+    marginTop: 18,
     minHeight: 58,
     paddingHorizontal: 18,
   },
   offlineButtonBusy: {
     opacity: 0.72,
+  },
+  offlineButtonContent: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
   },
   offlineButtonText: {
     color: "#FFFFFF",

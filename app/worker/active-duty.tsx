@@ -62,8 +62,6 @@ export default function ActiveDuty() {
         `${API_URL}/user/worker/current-duty/${parsedWorker.id}`,
       );
 
-      // A cancellation may complete while this request is still in flight.
-      // In that case this old response must not trigger another navigation.
       if (cancellationRequestedRef.current) return;
 
       if (!response.data.success || !response.data.duty) {
@@ -212,7 +210,11 @@ export default function ActiveDuty() {
   };
 
   if (isLoading) {
-    return <ActivityIndicator size="large" color="#000" style={{ flex: 1 }} />;
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color="#10B981" />
+      </View>
+    );
   }
 
   if (!dutyData) return null;
@@ -223,66 +225,71 @@ export default function ActiveDuty() {
     workerId: Number(workerSession?.id),
   });
 
+  const workAddress =
+    dutyData.workLocationText ||
+    dutyData.address?.mapAddress ||
+    dutyData.address?.addressLine ||
+    "Location confirmed by customer";
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>New Duty Assigned</Text>
-      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.alertBox}>
-          <CheckCircle2 color="#fff" size={32} />
-          <View style={styles.alertTextWrap}>
-            <Text style={styles.alertTitle}>You have a new task!</Text>
-            <Text style={styles.alertSub}>Please reach the location ASAP.</Text>
+        <View style={styles.headerCard}>
+          <View style={styles.statusBadge}>
+            <CheckCircle2 color="#047857" size={16} />
+            <Text style={styles.statusBadgeText}>New Duty</Text>
           </View>
+
+          <Text style={styles.headerTitle}>Reach Location</Text>
+          <Text style={styles.headerSub}>
+            Customer ko QR scan karna hai jab aap location par pahunch jao.
+          </Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Customer Details</Text>
-          <Text style={styles.customerName}>
-            {dutyData.customer?.name || "Customer"}
-          </Text>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.label}>Work Location</Text>
-          <View style={styles.row}>
-            <MapPin color="#6B7280" size={20} />
-            <Text style={styles.addressText}>
-              {dutyData.workLocationText ||
-                dutyData.address?.mapAddress ||
-                dutyData.address?.addressLine ||
-                "Location confirmed by customer"}
+        <View style={styles.infoCard}>
+          <View style={styles.infoBlock}>
+            <Text style={styles.infoLabel}>Customer</Text>
+            <Text style={styles.infoValue}>
+              {dutyData.customer?.name || "Customer"}
             </Text>
           </View>
+
+          <View style={styles.infoDivider} />
+
+          <View style={styles.infoBlock}>
+            <Text style={styles.infoLabel}>Location</Text>
+            <View style={styles.locationRow}>
+              <MapPin color="#10B981" size={18} />
+              <Text style={styles.locationText}>{workAddress}</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.workerQrCard}>
-          <Text style={styles.workerQrTitle}>Your Arrival QR</Text>
-          <Text style={styles.workerQrDescription}>
-            Location par pahunchne ke baad customer ko ye QR scan karne dein.
-          </Text>
-          <View style={styles.workerQrWrapper}>
+        <View style={styles.qrCard}>
+          <Text style={styles.cardTitle}>Arrival QR</Text>
+          <Text style={styles.cardSub}>Customer ko ye QR scan karne dein.</Text>
+
+          <View style={styles.qrWrapper}>
             <QRCode
               value={workerQrData}
-              size={170}
+              size={190}
               color="#111827"
               backgroundColor="#FFFFFF"
             />
           </View>
-          <Text style={styles.workerQrHint}>
-            Booking #{dutyData.id} · Worker #{workerSession?.id}
-          </Text>
+
+          <View style={styles.bookingChip}>
+            <Text style={styles.bookingChipText}>Booking #{dutyData.id}</Text>
+          </View>
         </View>
 
         <TouchableOpacity
-          style={styles.workerCancelBtn}
+          style={styles.issueButton}
           activeOpacity={0.9}
           disabled={isConnectingMitra || cancellationRequestedRef.current}
           onPressIn={startMitraHold}
@@ -291,18 +298,16 @@ export default function ActiveDuty() {
           <View
             pointerEvents="none"
             style={[
-              styles.workerCancelProgress,
+              styles.issueProgress,
               { width: `${mitraHoldProgress}%` as `${number}%` },
             ]}
           />
-          <View style={styles.workerCancelContent}>
+          <View style={styles.issueContent}>
             {isConnectingMitra ? (
               <ActivityIndicator color="#B91C1C" size="small" />
             ) : null}
-            <Text style={styles.workerCancelBtnText}>
-              Any issue, Connect Mitra
-            </Text>
-            <Text style={styles.workerCancelHint}>
+            <Text style={styles.issueTitle}>Any issue, Connect Mitra</Text>
+            <Text style={styles.issueHint}>
               {isConnectingMitra
                 ? "Sending request..."
                 : isHoldingMitra
@@ -317,118 +322,167 @@ export default function ActiveDuty() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F3F4F6" },
-  header: {
-    padding: 20,
-    paddingTop: 50,
-    backgroundColor: "#fff",
+  container: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+  },
+  loader: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#F3F4F6",
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+  content: {
+    padding: 18,
+    paddingTop: 18,
+    paddingBottom: 34,
   },
-  content: { flexGrow: 1, padding: 20, paddingBottom: 36 },
-  alertBox: {
-    backgroundColor: "#000",
+  headerCard: {
+    backgroundColor: "#0B7A55",
+    borderRadius: 28,
     padding: 20,
-    borderRadius: 20,
+    marginBottom: 16,
+  },
+  statusBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#ECFDF5",
+    borderRadius: 18,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginBottom: 14,
+    gap: 6,
   },
-  alertTextWrap: { marginLeft: 15 },
-  alertTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
-  alertSub: { color: "#9CA3AF", fontSize: 13, marginTop: 4 },
-  card: {
-    backgroundColor: "#fff",
-    padding: 20,
+  statusBadgeText: {
+    color: "#047857",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: "900",
+  },
+  headerSub: {
+    color: "#D1FAE5",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  infoCard: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 24,
+    padding: 18,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    marginBottom: 16,
   },
-  label: {
+  infoBlock: {},
+  infoLabel: {
+    color: "#6B7280",
     fontSize: 12,
-    fontWeight: "700",
-    color: "#6B7280",
+    fontWeight: "800",
     textTransform: "uppercase",
-    marginBottom: 5,
+    marginBottom: 8,
   },
-  customerName: { fontSize: 22, fontWeight: "900", color: "#111827" },
-  divider: { height: 1, backgroundColor: "#E5E7EB", marginVertical: 15 },
-  row: { flexDirection: "row", alignItems: "center" },
-  addressText: {
+  infoValue: {
+    color: "#111827",
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 28,
+  },
+  infoDivider: {
+    height: 1,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 16,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  locationText: {
     flex: 1,
+    color: "#374151",
     fontSize: 16,
-    color: "#4B5563",
+    lineHeight: 23,
+    fontWeight: "700",
     marginLeft: 8,
-    fontWeight: "500",
   },
-  workerQrCard: {
-    alignItems: "center",
+  qrCard: {
     backgroundColor: "#FFFFFF",
-    borderColor: "#A7F3D0",
-    borderRadius: 24,
-    borderWidth: 1.5,
-    marginTop: 16,
+    borderRadius: 26,
     padding: 18,
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  workerQrTitle: { color: "#111827", fontSize: 19, fontWeight: "900" },
-  workerQrDescription: {
+  cardTitle: {
+    color: "#111827",
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  cardSub: {
     color: "#6B7280",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    lineHeight: 19,
-    marginTop: 6,
-    maxWidth: 280,
     textAlign: "center",
+    marginTop: 6,
   },
-  workerQrWrapper: {
+  qrWrapper: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    marginVertical: 15,
-    padding: 12,
+    borderRadius: 22,
+    padding: 16,
+    marginTop: 18,
+    marginBottom: 14,
   },
-  workerQrHint: { color: "#047857", fontSize: 12, fontWeight: "800" },
-  workerCancelBtn: {
+  bookingChip: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bookingChipText: {
+    color: "#047857",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  issueButton: {
     position: "relative",
+    minHeight: 72,
+    borderRadius: 20,
     overflow: "hidden",
-    minHeight: 66,
     backgroundColor: "#FEF2F2",
     borderWidth: 1,
     borderColor: "#FECACA",
-    borderRadius: 16,
-    alignItems: "center",
     justifyContent: "center",
-    marginTop: 16,
   },
-  workerCancelProgress: {
+  issueProgress: {
     position: "absolute",
     top: 0,
-    bottom: 0,
     left: 0,
+    bottom: 0,
     backgroundColor: "#FECACA",
   },
-  workerCancelContent: {
+  issueContent: {
     zIndex: 1,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "column",
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 12,
   },
-  workerCancelBtnText: {
+  issueTitle: {
     color: "#B91C1C",
+    fontSize: 17,
     fontWeight: "900",
-    fontSize: 15,
-    letterSpacing: 0.2,
   },
-  workerCancelHint: {
+  issueHint: {
     color: "#991B1B",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
-    marginTop: 3,
+    marginTop: 4,
   },
 });
