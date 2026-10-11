@@ -1,8 +1,11 @@
 // app/_layout.tsx
 import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
-import { Stack, router } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import { useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
+import { API_URL } from "../constants/api";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 Notifications.setNotificationHandler({
@@ -16,6 +19,45 @@ Notifications.setNotificationHandler({
 });
 
 export default function RootLayout() {
+  const segments = useSegments();
+  const customerArea = segments[0] === "user" && segments[1] !== "login";
+
+  useEffect(() => {
+    if (!customerArea) return;
+    let mounted = true;
+    const heartbeat = async (online: boolean) => {
+      try {
+        const session = await AsyncStorage.getItem("customerSession");
+        const activeRole = await AsyncStorage.getItem("activeRole");
+        if (!session || activeRole !== "user") return;
+        const id = Number(JSON.parse(session)?.id);
+        if (!Number.isInteger(id) || id <= 0) return;
+        if (!mounted && online) return;
+        await fetch(`${API_URL}/user/presence`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ customerId: id, online }),
+        });
+      } catch (_) {
+        // Temporary connectivity loss results in Offline after two minutes.
+      }
+    };
+
+    if (AppState.currentState === "active") void heartbeat(true);
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active") void heartbeat(true);
+    }, 60000);
+    const subscription = AppState.addEventListener("change", (state) => {
+      void heartbeat(state === "active");
+    });
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+      subscription.remove();
+      void heartbeat(false);
+    };
+  }, [customerArea]);
+
   useEffect(() => {
     const handleNotificationData = (data: any) => {
       console.log("Notification Data:", data);

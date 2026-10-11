@@ -2,11 +2,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack } from "expo-router";
-import { CheckCircle, Clock3, MapPin } from "lucide-react-native";
+import { CheckCircle, Clock3, MapPin, PhoneCall } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -16,35 +17,16 @@ import {
 import { API_URL } from "../../constants/api";
 
 const ENABLE_WORKER_COMPLETE_DUTY = false;
-const MITRA_HOLD_DURATION_MS = 3000;
 
 export default function DutyInProgress() {
   const [dutyData, setDutyData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
-  const [isHoldingMitra, setIsHoldingMitra] = useState(false);
-  const [mitraHoldProgress, setMitraHoldProgress] = useState(0);
-  const [isConnectingMitra, setIsConnectingMitra] = useState(false);
+  const [isCallingMitra, setIsCallingMitra] = useState(false);
 
   const bookingIdRef = useRef<number | null>(null);
   const isRedirectingRef = useRef(false);
   const isRequestRunningRef = useRef(false);
-  const cancellationRequestedRef = useRef(false);
-  const mitraHoldCompletedRef = useRef(false);
-  const mitraHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mitraHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const clearMitraHoldTimers = () => {
-    if (mitraHoldTimeoutRef.current) {
-      clearTimeout(mitraHoldTimeoutRef.current);
-      mitraHoldTimeoutRef.current = null;
-    }
-
-    if (mitraHoldIntervalRef.current) {
-      clearInterval(mitraHoldIntervalRef.current);
-      mitraHoldIntervalRef.current = null;
-    }
-  };
 
   useEffect(() => {
     void fetchCurrentDuty(false);
@@ -55,7 +37,6 @@ export default function DutyInProgress() {
 
     return () => {
       clearInterval(statusInterval);
-      clearMitraHoldTimers();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -93,11 +74,7 @@ export default function DutyInProgress() {
   };
 
   const fetchCurrentDuty = async (silent = false) => {
-    if (
-      isRequestRunningRef.current ||
-      isRedirectingRef.current ||
-      cancellationRequestedRef.current
-    ) {
+    if (isRequestRunningRef.current || isRedirectingRef.current) {
       return;
     }
 
@@ -123,6 +100,11 @@ export default function DutyInProgress() {
         const currentDuty = response.data.duty;
         bookingIdRef.current = Number(currentDuty.id);
         setDutyData(currentDuty);
+        return;
+      }
+
+      if (response.data.completed && response.data.bookingId) {
+        openClientRating(Number(response.data.bookingId));
         return;
       }
 
@@ -227,108 +209,46 @@ export default function DutyInProgress() {
     ]);
   };
 
-  const connectMitraAndCancelDuty = async () => {
-    if (cancellationRequestedRef.current || isConnectingMitra) return;
+  const callAssignedMitra = async () => {
+    if (isCallingMitra) return;
 
     try {
-      cancellationRequestedRef.current = true;
-      setIsConnectingMitra(true);
-
-      if (!dutyData?.id) {
-        cancellationRequestedRef.current = false;
-        Alert.alert("Error", "Booking ID missing hai.");
-        return;
-      }
+      setIsCallingMitra(true);
 
       const session = await AsyncStorage.getItem("workerSession");
       if (!session) {
-        cancellationRequestedRef.current = false;
-        Alert.alert("Session Error", "Please login again.");
+        Alert.alert("Error", "Worker session missing hai.");
         return;
       }
 
       const parsedWorker = JSON.parse(session);
-      const response = await axios.post(`${API_URL}/user/conflicts/create`, {
-        bookingId: dutyData.id,
-        workerId: parsedWorker.id,
-        raisedBy: "WORKER",
-        reason: "Worker requested Mitra assistance",
-        description: "Direct request raised during an active duty.",
-        continueWork: false,
-        requestedAction: "CANCEL_DUTY",
-      });
+      const workerId = Number(parsedWorker?.id || 0);
 
-      if (!response.data.success) {
-        cancellationRequestedRef.current = false;
-        Alert.alert(
-          "Failed",
-          response.data.message || "Mitra request create nahi ho payi.",
-        );
+      if (!workerId) {
+        Alert.alert("Error", "Worker session missing hai.");
         return;
       }
 
-      Alert.alert(
-        "Mitra Connected",
-        "Duty cancel ho gayi hai aur Mitra ko request bhej di gayi hai.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              if (isRedirectingRef.current) return;
-              isRedirectingRef.current = true;
-              router.replace("/worker/dashboard");
-            },
-          },
-        ],
-      );
+      const response = await axios.get(`${API_URL}/worker/profile/${workerId}`);
+      const phone = response.data?.worker?.mitra?.phone;
+
+      if (!response.data?.success || !phone) {
+        Alert.alert("Mitra Not Found", "Assigned Mitra ka mobile number available nahi hai.");
+        return;
+      }
+
+      const dialNumber = String(phone).replace(/[^\d+]/g, "");
+      const dialUrl = `tel:${dialNumber}`;
+      await Linking.openURL(dialUrl);
     } catch (error: any) {
-      cancellationRequestedRef.current = false;
-      console.log("Worker Mitra Request Error:", error?.response?.data || error);
+      console.log("Call Mitra error:", error?.response?.data || error);
       Alert.alert(
-        "Server Error",
-        error?.response?.data?.message || "Mitra se connect nahi ho paya.",
+        "Error",
+        error?.response?.data?.message || "Mitra ka number load nahi ho paya.",
       );
     } finally {
-      setIsConnectingMitra(false);
-      setIsHoldingMitra(false);
-      setMitraHoldProgress(0);
-      mitraHoldCompletedRef.current = false;
+      setIsCallingMitra(false);
     }
-  };
-
-  const startMitraHold = () => {
-    if (cancellationRequestedRef.current || isConnectingMitra || isHoldingMitra) {
-      return;
-    }
-
-    clearMitraHoldTimers();
-    mitraHoldCompletedRef.current = false;
-    setIsHoldingMitra(true);
-    setMitraHoldProgress(0);
-
-    const holdStartedAt = Date.now();
-    mitraHoldIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - holdStartedAt;
-      setMitraHoldProgress(
-        Math.min(100, (elapsed / MITRA_HOLD_DURATION_MS) * 100),
-      );
-    }, 50);
-
-    mitraHoldTimeoutRef.current = setTimeout(() => {
-      mitraHoldCompletedRef.current = true;
-      clearMitraHoldTimers();
-      setMitraHoldProgress(100);
-      setIsHoldingMitra(false);
-      void connectMitraAndCancelDuty();
-    }, MITRA_HOLD_DURATION_MS);
-  };
-
-  const cancelMitraHold = () => {
-    if (mitraHoldCompletedRef.current) return;
-
-    clearMitraHoldTimers();
-    setIsHoldingMitra(false);
-    setMitraHoldProgress(0);
   };
 
   if (isLoading) {
@@ -380,31 +300,21 @@ export default function DutyInProgress() {
 
         <View style={styles.footerActions}>
           <TouchableOpacity
-            style={styles.mitraButton}
-            activeOpacity={0.9}
-            disabled={isConnectingMitra || cancellationRequestedRef.current}
-            onPressIn={startMitraHold}
-            onPressOut={cancelMitraHold}
+            style={styles.callButton}
+            activeOpacity={0.85}
+            disabled={isCallingMitra}
+            onPress={callAssignedMitra}
           >
-            <View
-              pointerEvents="none"
-              style={[
-                styles.mitraButtonProgress,
-                { width: `${mitraHoldProgress}%` as `${number}%` },
-              ]}
-            />
-            <View style={styles.mitraButtonContent}>
-              {isConnectingMitra ? (
-                <ActivityIndicator color="#B91C1C" size="small" />
-              ) : null}
-              <Text style={styles.mitraButtonText}>Any issue, Connect Mitra</Text>
-              <Text style={styles.mitraButtonHint}>
-                {isConnectingMitra
-                  ? "Sending request..."
-                  : isHoldingMitra
-                    ? "Keep holding..."
-                    : "Hold for 3 seconds"}
-              </Text>
+            <View style={styles.callIconWrap}>
+              {isCallingMitra ? (
+                <ActivityIndicator color="#047857" size="small" />
+              ) : (
+                <PhoneCall color="#047857" size={25} />
+              )}
+            </View>
+            <View style={styles.callTextWrap}>
+              <Text style={styles.callTitle}>Call Mitra</Text>
+              <Text style={styles.callSub}>Need help? Tap to call</Text>
             </View>
           </TouchableOpacity>
 
@@ -522,40 +432,38 @@ const styles = StyleSheet.create({
     marginTop: "auto",
     paddingTop: 18,
   },
-  mitraButton: {
-    position: "relative",
-    overflow: "hidden",
-    minHeight: 72,
-    borderRadius: 20,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    justifyContent: "center",
+  callButton: {
+    minHeight: 78,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
   },
-  mitraButtonProgress: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    backgroundColor: "#FECACA",
-  },
-  mitraButtonContent: {
-    zIndex: 1,
+  callIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#ECFDF5",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginRight: 13,
   },
-  mitraButtonText: {
-    color: "#B91C1C",
-    fontSize: 17,
+  callTextWrap: {
+    flex: 1,
+  },
+  callTitle: {
+    color: "#111827",
+    fontSize: 19,
     fontWeight: "900",
   },
-  mitraButtonHint: {
-    color: "#991B1B",
+  callSub: {
+    color: "#6B7280",
     fontSize: 12,
     fontWeight: "700",
-    marginTop: 4,
+    marginTop: 3,
   },
   completeBtn: {
     backgroundColor: "#111827",

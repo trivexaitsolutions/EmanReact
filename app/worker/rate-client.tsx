@@ -1,12 +1,10 @@
 // app/worker/rate-client.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CommonActions } from "@react-navigation/native";
 import axios from "axios";
 import {
   router,
   Stack,
   useLocalSearchParams,
-  useNavigation,
 } from "expo-router";
 import { CheckCircle2, ChevronLeft, Star, UserRound } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
@@ -24,7 +22,6 @@ import {
 import { API_URL } from "../../constants/api";
 
 export default function RateClientScreen() {
-  const navigation = useNavigation();
   const { bookingId } = useLocalSearchParams();
 
   const [workerSession, setWorkerSession] = useState<any>(null);
@@ -120,16 +117,7 @@ export default function RateClientScreen() {
           {
             text: "OK",
             onPress: () => {
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [
-                    {
-                      name: "worker/dashboard",
-                    },
-                  ],
-                }),
-              );
+router.replace("/worker/dashboard");
             },
           },
         ]);
@@ -266,16 +254,7 @@ export default function RateClientScreen() {
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => {
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [
-                  {
-                    name: "worker/dashboard",
-                  },
-                ],
-              }),
-            );
+router.replace("/worker/dashboard");
           }}
           style={styles.skipBtn}
         >

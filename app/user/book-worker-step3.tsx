@@ -34,6 +34,8 @@ type BookingDraft = {
     id: number;
     name?: string;
     averageRating?: number;
+    effectiveRate?: number | null;
+    poolNumber?: number | null;
   }[];
   workLatitude?: number;
   workLongitude?: number;
@@ -260,6 +262,15 @@ export default function BookWorkerStep3() {
       return;
     }
 
+    if (!Number.isFinite(Number(unitPrice)) || Number(unitPrice) <= 0) {
+      Alert.alert(
+        "Rate Missing",
+        "Selected skill ka rate load nahi hua hai. Please previous step par jaake skill/rating dobara select karein.",
+      );
+
+      return;
+    }
+
     if (
       !Number.isFinite(Number(draft.workLatitude)) ||
       !Number.isFinite(Number(draft.workLongitude))
@@ -348,6 +359,20 @@ export default function BookWorkerStep3() {
       }
 
       createdBookingId = Number(initiateResponse.data.bookingId);
+
+      // Backend is the pricing source of truth. If the pool rate changed
+      // after the selection page was opened, do not charge a different amount
+      // without the customer first seeing the updated worker-wise prices.
+      if (
+        draft.assignmentMode === "CUSTOMER_SELECT" &&
+        Array.isArray(draft.selectedWorkers) &&
+        draft.selectedWorkers.length > 0 &&
+        Math.abs(Number(initiateResponse.data.totalAmount) - totalAmount) > 0.01
+      ) {
+        const priceError: any = new Error("Pool rate changed. Please review the latest worker prices before paying.");
+        priceError.code = "POOL_RATE_CHANGED";
+        throw priceError;
+      }
 
       const razorpayOrder = initiateResponse.data.razorpayOrder;
 
@@ -456,7 +481,16 @@ export default function BookWorkerStep3() {
         return;
       }
 
-      const errorCode = error?.response?.data?.code;
+      const errorCode = error?.code || error?.response?.data?.code;
+
+      if (errorCode === "POOL_RATE_CHANGED") {
+        Alert.alert(
+          "Pool Rate Updated",
+          "Worker ke pool rates change hue hain. Payment se pehle updated price check karein.",
+          [{ text: "Review Prices", onPress: () => router.replace("/user/book-worker-select-workers") }],
+        );
+        return;
+      }
 
       if (
         errorCode === "WORKERS_NO_LONGER_AVAILABLE" ||
@@ -508,7 +542,17 @@ export default function BookWorkerStep3() {
 
   const workerCount = Number(draft.workerCount || 1);
 
-  const totalAmount = unitPrice * workerCount;
+  const selectedWorkerTotal = Array.isArray(draft.selectedWorkers)
+    ? draft.selectedWorkers.reduce((sum, worker) => {
+        const amount = Number(worker.effectiveRate || 0);
+        return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
+      }, 0)
+    : 0;
+
+  const totalAmount =
+    draft.assignmentMode === "CUSTOMER_SELECT" && selectedWorkerTotal > 0
+      ? selectedWorkerTotal
+      : unitPrice * workerCount;
 
   const ratingText =
     Number(draft.minRating || 0) === 0
@@ -625,11 +669,10 @@ export default function BookWorkerStep3() {
         <View style={[styles.footer, isSmallScreen && styles.footerSmall]}>
           <TouchableOpacity
             activeOpacity={0.85}
-            disabled={isPaying || !selectedAddress || unitPrice <= 0}
+            disabled={isPaying}
             style={[
               styles.paymentButton,
-              (!selectedAddress || unitPrice <= 0 || isPaying) &&
-                styles.paymentButtonDisabled,
+              isPaying && styles.paymentButtonDisabled,
             ]}
             onPress={handleProceedToPayment}
           >

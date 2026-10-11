@@ -4,11 +4,14 @@ import axios from "axios";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { router, Stack } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -21,6 +24,13 @@ export default function CustomerLoginScreen() {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const keepFormVisible = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  };
 
   // Login Field
   const [loginId, setLoginId] = useState(""); // Isme phone ya email kuch bhi daal sakte hain
@@ -152,6 +162,20 @@ export default function CustomerLoginScreen() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>E-MAN CUSTOMER</Text>
       </View>
@@ -185,6 +209,7 @@ export default function CustomerLoginScreen() {
                 value={phone}
                 onChangeText={setPhone}
                 editable={!isOtpSent}
+                onFocus={keepFormVisible}
               />
               <TextInput
                 style={styles.input}
@@ -194,6 +219,7 @@ export default function CustomerLoginScreen() {
                 value={email}
                 onChangeText={setEmail}
                 editable={!isOtpSent}
+                onFocus={keepFormVisible}
               />
             </>
           ) : (
@@ -205,6 +231,7 @@ export default function CustomerLoginScreen() {
               value={loginId}
               onChangeText={setLoginId}
               editable={!isOtpSent} // OTP aane ke baad isko lock kar denge
+              onFocus={keepFormVisible}
             />
           )}
 
@@ -221,6 +248,9 @@ export default function CustomerLoginScreen() {
             value={otp}
             onChangeText={setOtp}
             editable={isOtpSent} // Yeh logic OTP box ko disable/enable karta hai
+            onFocus={keepFormVisible}
+            returnKeyType="done"
+            onSubmitEditing={isOtpSent ? handleVerifyOtp : undefined}
           />
 
           {/* ----- MAIN BUTTON ----- */}
@@ -262,12 +292,17 @@ export default function CustomerLoginScreen() {
           )}
         </View>
       </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
+  keyboardView: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 140 },
   header: {
     backgroundColor: "#0052CC",
     paddingTop: 50,
@@ -281,7 +316,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 1,
   },
-  content: { flex: 1, padding: 24, marginTop: 20 },
+  content: { flexGrow: 1, padding: 24, marginTop: 20 },
   titleText: {
     fontSize: 28,
     fontWeight: "bold",

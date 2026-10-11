@@ -241,9 +241,11 @@ export default function WorkerAvailable() {
     workerSession?.name || workerSession?.fullName || "Worker";
   const firstName = String(workerFullName).trim().split(" ")[0] || "Worker";
   const { hours, minutes, secs } = formatElapsedTime(elapsedSeconds);
-  const isHalfDay = poolInfo?.availabilityType === "SHORT_PERIOD";
-  const availabilityTypeLabel = isHalfDay ? "Half Day" : "Full Day";
+  const isShortWork = poolInfo?.availabilityType === "SHORT_PERIOD";
   const availabilityHours = Math.max(0, Number(poolInfo?.availabilityHours || 0));
+  const availabilityTypeLabel = isShortWork
+    ? `${availabilityHours} Hours Work`
+    : "Full Day Work";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -270,11 +272,11 @@ export default function WorkerAvailable() {
 
         <View style={styles.availabilityCard}>
           <View>
-            <Text style={styles.availabilityLabel}>AVAILABILITY TYPE</Text>
+            <Text style={styles.availabilityLabel}>WORK PREFERENCE</Text>
             <Text style={styles.availabilityValue}>{availabilityTypeLabel}</Text>
           </View>
 
-          {isHalfDay && (
+          {isShortWork && (
             <View style={styles.hoursBadge}>
               <Clock3 color="#087C49" size={18} strokeWidth={2.5} />
               <Text style={styles.hoursBadgeText}>

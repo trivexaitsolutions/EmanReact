@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router, Stack } from "expo-router";
-import { CheckCircle2, Phone, QrCode, XCircle } from "lucide-react-native";
+import { CheckCircle2, Clock3, Phone, QrCode, XCircle } from "lucide-react-native";
 // import React, { useEffect, useState } from "react";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -30,13 +30,47 @@ const clientIssueReasons = [
   "Other",
 ];
 
+const parseIdList = (value: any): number[] => {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isFinite) : [];
+  } catch {
+    return [];
+  }
+};
+
+const parseJsonMap = (value: any): Record<string, any> => {
+  try {
+    const parsed = JSON.parse(value || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+const formatTimer = (totalSeconds: number) => {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, "0");
+  const seconds = String(safeSeconds % 60).padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+};
+
 export default function ActiveBooking() {
   const [booking, setBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showScanner, setShowScanner] = useState(false);
   const [hasScanned, setHasScanned] = useState(false);
   const [isVerifyingWorker, setIsVerifyingWorker] = useState(false);
+  const [manualCodeDigits, setManualCodeDigits] = useState<string[]>([
+    "", "", "", "", "", "",
+  ]);
+  const manualCodeInputRefs = useRef<Array<TextInput | null>>([]);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [nowTick, setNowTick] = useState(Date.now());
+  const [isCompletingWorkerId, setIsCompletingWorkerId] = useState<number | null>(null);
 
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [selectedIssueReason, setSelectedIssueReason] = useState("");
@@ -60,6 +94,11 @@ export default function ActiveBooking() {
     }, 5000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const fetchActiveBooking = async () => {
@@ -167,23 +206,171 @@ export default function ActiveBooking() {
   };
 
   const handleCall = (phoneNumber: string) => {
+    if (!phoneNumber) {
+      Alert.alert("Number Not Available", "Phone number available nahi hai.");
+      return;
+    }
     Linking.openURL(`tel:${phoneNumber}`);
   };
 
-  const openWorkerScanner = async () => {
-    if (!cameraPermission?.granted) {
-      const { granted } = await requestCameraPermission();
-      if (!granted) {
-        Alert.alert(
-          "Camera Permission Required",
-          "Worker ka QR scan karne ke liye camera permission allow karein.",
-        );
-        return;
-      }
+  const handleCallMitra = () => {
+    const mitraPhone = booking?.customer?.mitra?.phone;
+    if (!mitraPhone) {
+      Alert.alert(
+        "Mitra Not Available",
+        "Assigned Mitra ka phone number available nahi hai.",
+      );
+      return;
     }
 
+    handleCall(String(mitraPhone));
+  };
+
+  const handleCompleteWorker = async (workerId: number, workerName: string) => {
+    if (isCompletingWorkerId) return;
+
+    Alert.alert(
+      "Mark Worker Complete?",
+      `${workerName || "Worker"} ka kaam complete mark karna hai?`,
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Complete",
+          onPress: async () => {
+            try {
+              setIsCompletingWorkerId(workerId);
+              const response = await axios.post(
+                `${API_URL}/user/worker/complete-duty`,
+                {
+                  bookingId: Number(booking.id),
+                  workerId: Number(workerId),
+                },
+              );
+
+              if (!response.data.success) {
+                throw new Error(
+                  response.data.message || "Worker complete nahi ho paya.",
+                );
+              }
+
+              if (response.data.allWorkersCompleted) {
+                router.replace({
+                  pathname: "/user/rating",
+                  params: { bookingId: String(booking.id) },
+                });
+                return;
+              }
+
+              await fetchActiveBooking();
+            } catch (error: any) {
+              Alert.alert(
+                "Unable to Complete",
+                error?.response?.data?.message ||
+                  error?.message ||
+                  "Worker complete nahi ho paya.",
+              );
+            } finally {
+              setIsCompletingWorkerId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const openWorkerScanner = async () => {
     setHasScanned(false);
+    setManualCodeDigits(["", "", "", "", "", ""]);
     setShowScanner(true);
+
+    if (!cameraPermission?.granted) {
+      try {
+        await requestCameraPermission();
+      } catch (error) {
+        console.log("Camera permission request error:", error);
+      }
+    }
+  };
+
+  const submitManualWorkerCode = async (manualCode: string) => {
+    if (isVerifyingWorker || manualCode.length !== 6) return;
+
+    setIsVerifyingWorker(true);
+    setHasScanned(true);
+
+    try {
+      const response = await axios.post(`${API_URL}/user/worker/verify-code`, {
+        bookingId: Number(booking.id),
+        customerId: Number(booking.customerId),
+        code: manualCode,
+      });
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || "Code verification failed");
+      }
+
+      setShowScanner(false);
+      setManualCodeDigits(["", "", "", "", "", ""]);
+      await fetchActiveBooking();
+
+      Alert.alert(
+        "Worker Verified",
+        response.data.message || "Worker arrival successfully verified.",
+      );
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "6 digit code verify nahi ho paya.";
+
+      const isExpired = error?.response?.data?.code === "EXPIRED_ARRIVAL_CODE";
+      Alert.alert(isExpired ? "Code Expired" : "Invalid Code", message, [
+        {
+          text: "Try Again",
+          onPress: () => {
+            setManualCodeDigits(["", "", "", "", "", ""]);
+            setHasScanned(false);
+            setTimeout(() => manualCodeInputRefs.current[0]?.focus(), 100);
+          },
+        },
+      ]);
+    } finally {
+      setIsVerifyingWorker(false);
+    }
+  };
+
+  const handleManualCodeChange = (index: number, value: string) => {
+    if (isVerifyingWorker) return;
+
+    const numericValue = String(value || "").replace(/\D/g, "");
+
+    if (numericValue.length >= 6) {
+      const pastedDigits = numericValue.slice(0, 6).split("");
+      setManualCodeDigits(pastedDigits);
+      manualCodeInputRefs.current[5]?.blur();
+      setTimeout(() => void submitManualWorkerCode(pastedDigits.join("")), 80);
+      return;
+    }
+
+    const nextDigits = [...manualCodeDigits];
+    nextDigits[index] = numericValue.slice(-1);
+    setManualCodeDigits(nextDigits);
+
+    if (nextDigits[index] && index < 5) {
+      manualCodeInputRefs.current[index + 1]?.focus();
+    }
+
+    const fullCode = nextDigits.join("");
+    if (fullCode.length === 6) {
+      manualCodeInputRefs.current[5]?.blur();
+      setTimeout(() => void submitManualWorkerCode(fullCode), 80);
+    }
+  };
+
+  const handleManualCodeKeyPress = (index: number, key: string) => {
+    if (key === "Backspace" && !manualCodeDigits[index] && index > 0) {
+      manualCodeInputRefs.current[index - 1]?.focus();
+    }
   };
 
   const handleWorkerQrScanned = async ({ data }: { data: string }) => {
@@ -433,6 +620,10 @@ export default function ActiveBooking() {
   }
 
   const cancelledIds = cancelledList.map(Number);
+  const arrivedIds = parseIdList(booking.arrivedWorkerIds);
+  const completedIds = parseIdList(booking.completedWorkerIds);
+  const workerArrivalTimes = parseJsonMap(booking.workerArrivalTimes);
+  const workerWorkDurations = parseJsonMap(booking.workerWorkDurations);
 
   const activeWorkers = booking.workers.filter(
     (worker: any) => !cancelledIds.includes(Number(worker.id)),
@@ -440,6 +631,18 @@ export default function ActiveBooking() {
 
   const allWorkersCancelled =
     booking.workers.length > 0 && activeWorkers.length === 0;
+
+  const activeIncompleteWorkers = activeWorkers.filter(
+    (worker: any) => !completedIds.includes(Number(worker.id)),
+  );
+  const allActiveWorkersArrived =
+    activeIncompleteWorkers.length > 0 &&
+    activeIncompleteWorkers.every((worker: any) =>
+      arrivedIds.includes(Number(worker.id)),
+    );
+  const hasWorkerWaitingForArrival = activeIncompleteWorkers.some(
+    (worker: any) => !arrivedIds.includes(Number(worker.id)),
+  );
 
   const isBookingCancelled =
     booking.status === "CANCELLED" || bookingCancelledByUser;
@@ -450,36 +653,93 @@ export default function ActiveBooking() {
 
       {showScanner && (
         <View style={styles.customerScannerContainer}>
-          <CameraView
-            style={StyleSheet.absoluteFillObject}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-            onBarcodeScanned={
-              hasScanned ? undefined : handleWorkerQrScanned
-            }
-          />
-          <View style={styles.customerScannerOverlay}>
-            <Text style={styles.customerScannerTitle}>Scan Worker QR</Text>
-            <Text style={styles.customerScannerDescription}>
-              Worker ki New Duty screen par dikh raha QR is frame mein layen.
+          <View style={styles.customerScannerCard}>
+            <View style={styles.customerScannerTopRow}>
+              <View>
+                <Text style={styles.customerScannerTitle}>Verify Worker</Text>
+                <Text style={styles.customerScannerDescription}>
+                  QR scan karein ya niche 6 digit code enter karein.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.customerScannerCloseBtn}
+                onPress={() => setShowScanner(false)}
+              >
+                <XCircle color="#111827" size={32} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.customerScannerCameraArea}>
+              {cameraPermission?.granted ? (
+                <CameraView
+                  style={StyleSheet.absoluteFillObject}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                  onBarcodeScanned={
+                    hasScanned || isVerifyingWorker
+                      ? undefined
+                      : handleWorkerQrScanned
+                  }
+                />
+              ) : (
+                <View style={styles.cameraUnavailableBox}>
+                  <QrCode color="#10B981" size={44} />
+                  <Text style={styles.cameraUnavailableTitle}>
+                    Camera unavailable
+                  </Text>
+                  <Text style={styles.cameraUnavailableText}>
+                    Niche worker ka 6 digit code enter karein.
+                  </Text>
+                </View>
+              )}
+
+              {cameraPermission?.granted ? (
+                <View pointerEvents="none" style={styles.customerScannerFrame} />
+              ) : null}
+            </View>
+
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>OR</Text>
+              <View style={styles.orLine} />
+            </View>
+
+            <Text style={styles.manualCodeTitle}>Enter 6 Digit Code</Text>
+            <View style={styles.manualCodeRow}>
+              {manualCodeDigits.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => {
+                    manualCodeInputRefs.current[index] = ref;
+                  }}
+                  value={digit}
+                  onChangeText={(value) => handleManualCodeChange(index, value)}
+                  onKeyPress={({ nativeEvent }) =>
+                    handleManualCodeKeyPress(index, nativeEvent.key)
+                  }
+                  editable={!isVerifyingWorker}
+                  keyboardType="number-pad"
+                  maxLength={index === 0 ? 6 : 1}
+                  selectTextOnFocus
+                  style={styles.manualCodeInput}
+                  textContentType="oneTimeCode"
+                />
+              ))}
+            </View>
+            <Text style={styles.manualCodeHelp}>
+              Worker ke QR ke niche dikh raha code enter karein. 6 digits complete
+              hote hi verification automatic hogi.
             </Text>
-            <View style={styles.customerScannerFrame} />
 
             {isVerifyingWorker ? (
               <View style={styles.customerScannerLoading}>
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color="#047857" size="small" />
                 <Text style={styles.customerScannerLoadingText}>
                   Verifying worker...
                 </Text>
               </View>
             ) : null}
-
-            <TouchableOpacity
-              style={styles.closeCustomerScanner}
-              onPress={() => setShowScanner(false)}
-            >
-              <XCircle color="#FFFFFF" size={40} />
-            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -501,10 +761,15 @@ export default function ActiveBooking() {
         </View>
 
         <TouchableOpacity
-          style={styles.raiseIssueBtn}
-          onPress={() => setShowIssueModal(true)}
+          style={styles.callMitraBtn}
+          activeOpacity={0.88}
+          onPress={handleCallMitra}
         >
-          <Text style={styles.raiseIssueBtnText}>Cancel / Raise Issue</Text>
+          <Phone color="#FFFFFF" size={22} />
+          <View style={styles.callMitraTextWrap}>
+            <Text style={styles.callMitraBtnText}>Call Mitra</Text>
+            <Text style={styles.callMitraBtnSub}>Need help? Call your assigned Mitra</Text>
+          </View>
         </TouchableOpacity>
 
         {/* WORKER LIST */}
@@ -514,39 +779,62 @@ export default function ActiveBooking() {
 
         {/* Worker List ke andar Tick mark dikhane ke liye */}
         {booking.workers.map((worker: any) => {
-          let arrivedList: any[] = [];
-          let cancelledList: any[] = [];
-          let completedList: any[] = [];
+          const workerId = Number(worker.id);
+          const hasArrived = arrivedIds.includes(workerId);
+          const isCancelled = cancelledIds.includes(workerId);
+          const isCompleted = completedIds.includes(workerId);
 
-          try {
-            arrivedList = JSON.parse(booking.arrivedWorkerIds || "[]");
-          } catch (e) {
-            arrivedList = [];
+          const durationPreference =
+            workerWorkDurations[String(workerId)] || {
+              type: worker.availabilityType || "FULL_DAY",
+              hours: worker.availabilityHours || null,
+            };
+
+          const isShortWork =
+            durationPreference?.type === "SHORT_PERIOD" &&
+            Number(durationPreference?.hours || 0) > 0;
+          const durationHours = isShortWork
+            ? Number(durationPreference.hours)
+            : null;
+          const durationText = isShortWork
+            ? `${durationHours} Hours Work`
+            : "Full Day Work";
+
+          const arrivalValue =
+            workerArrivalTimes[String(workerId)] ||
+            (hasArrived ? booking.updatedAt : null);
+          const arrivalMs = arrivalValue
+            ? new Date(arrivalValue).getTime()
+            : NaN;
+
+          let timerLabel = "";
+          let timerValue = "";
+          let isOvertime = false;
+
+          if (hasArrived && Number.isFinite(arrivalMs) && !isCompleted) {
+            if (isShortWork && durationHours) {
+              const committedSeconds = durationHours * 60 * 60;
+              const elapsedSeconds = Math.max(
+                0,
+                Math.floor((nowTick - arrivalMs) / 1000),
+              );
+              const remainingSeconds = committedSeconds - elapsedSeconds;
+
+              if (remainingSeconds >= 0) {
+                timerLabel = "Time Remaining";
+                timerValue = formatTimer(remainingSeconds);
+              } else {
+                isOvertime = true;
+                timerLabel = "Overtime";
+                timerValue = `+${formatTimer(Math.abs(remainingSeconds))}`;
+              }
+            } else {
+              timerLabel = "Time Elapsed";
+              timerValue = formatTimer(
+                Math.max(0, Math.floor((nowTick - arrivalMs) / 1000)),
+              );
+            }
           }
-
-          try {
-            cancelledList = JSON.parse(booking.cancelledWorkerIds || "[]");
-          } catch (e) {
-            cancelledList = [];
-          }
-
-          try {
-            completedList = JSON.parse(booking.completedWorkerIds || "[]");
-          } catch (e) {
-            completedList = [];
-          }
-
-          const hasArrived = arrivedList
-            .map(Number)
-            .includes(Number(worker.id));
-
-          const isCancelled = cancelledList
-            .map(Number)
-            .includes(Number(worker.id));
-
-          const isCompleted = completedList
-            .map(Number)
-            .includes(Number(worker.id));
 
           return (
             <View
@@ -556,53 +844,100 @@ export default function ActiveBooking() {
                 isCancelled && styles.workerCardCancelled,
               ]}
             >
-              <View style={styles.workerInfo}>
-                <View style={styles.avatarPlaceholder}>
-                  <Text
-                    style={{
-                      fontSize: 20,
-                      fontWeight: "bold",
-                      color: "#9CA3AF",
-                    }}
+              <View style={styles.workerCardTop}>
+                <View style={styles.workerInfo}>
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarLetter}>
+                      {worker.name ? worker.name.charAt(0).toUpperCase() : "W"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.workerTextGroup}>
+                    <Text style={styles.workerName}>
+                      {worker.name || "Worker"}
+                    </Text>
+                    <Text style={styles.workerRole}>⭐ Verified Professional</Text>
+                  </View>
+                </View>
+
+                {isCancelled ? (
+                  <View style={styles.cancelledBadge}>
+                    <XCircle color="#fff" size={15} />
+                    <Text style={styles.cancelledBadgeText}>Cancelled</Text>
+                  </View>
+                ) : isCompleted ? (
+                  <View style={styles.completedWorkerBadge}>
+                    <Text style={styles.completedWorkerBadgeText}>Completed ✅</Text>
+                  </View>
+                ) : hasArrived ? (
+                  <View style={styles.arrivedBadge}>
+                    <Text style={styles.arrivedBadgeText}>Arrived ✅</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.callBtn}
+                    onPress={() => handleCall(worker.phone)}
                   >
-                    {worker.name ? worker.name.charAt(0).toUpperCase() : "W"}
-                  </Text>
-                </View>
-
-                <View style={styles.workerTextGroup}>
-                  <Text style={styles.workerName}>
-                    {worker.name || "Worker"}
-                  </Text>
-
-                  <Text style={styles.workerRole}>
-                    ⭐ Verified Professional
-                  </Text>
-                </View>
+                    <Phone color="#fff" size={20} />
+                  </TouchableOpacity>
+                )}
               </View>
 
-              {isCancelled ? (
-                <View style={styles.cancelledBadge}>
-                  <XCircle color="#fff" size={15} />
-                  <Text style={styles.cancelledBadgeText}>Cancelled</Text>
+              {!isCancelled && (
+                <View style={styles.workerDurationRow}>
+                  <Clock3 color="#087C49" size={18} />
+                  <Text style={styles.workerDurationText}>{durationText}</Text>
                 </View>
-              ) : isCompleted ? (
-                <View style={styles.completedWorkerBadge}>
-                  <Text style={styles.completedWorkerBadgeText}>
-                    Completed ✅
+              )}
+
+              {hasArrived && !isCancelled && !isCompleted && timerValue ? (
+                <View
+                  style={[
+                    styles.workerTimerBox,
+                    isOvertime && styles.workerTimerBoxOvertime,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.workerTimerLabel,
+                      isOvertime && styles.workerTimerLabelOvertime,
+                    ]}
+                  >
+                    {timerLabel}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.workerTimerValue,
+                      isOvertime && styles.workerTimerValueOvertime,
+                    ]}
+                  >
+                    {timerValue}
                   </Text>
                 </View>
-              ) : hasArrived ? (
-                <View style={styles.arrivedBadge}>
-                  <Text style={styles.arrivedBadgeText}>Arrived ✅</Text>
-                </View>
-              ) : (
+              ) : null}
+
+              {hasArrived && !isCancelled && !isCompleted ? (
                 <TouchableOpacity
-                  style={styles.callBtn}
-                  onPress={() => handleCall(worker.phone)}
+                  activeOpacity={0.88}
+                  disabled={isCompletingWorkerId === workerId}
+                  style={[
+                    styles.workerCompleteBtn,
+                    isCompletingWorkerId === workerId &&
+                      styles.workerCompleteBtnDisabled,
+                  ]}
+                  onPress={() =>
+                    handleCompleteWorker(workerId, worker.name || "Worker")
+                  }
                 >
-                  <Phone color="#fff" size={20} />
+                  {isCompletingWorkerId === workerId ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.workerCompleteBtnText}>
+                      Mark {worker.name || "Worker"} Complete
+                    </Text>
+                  )}
                 </TouchableOpacity>
-              )}
+              ) : null}
             </View>
           );
         })}
@@ -660,26 +995,12 @@ export default function ActiveBooking() {
               </TouchableOpacity>
             </View>
           </View>
-        ) : booking.status === "IN_PROGRESS" ? (
-          <View style={styles.completeCard}>
-            <Text style={styles.qrTitle}>Work in Progres</Text>
-            <Text style={styles.qrDesc}>
-              Active workers have arrived and started their duty.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.completeWorkBtn}
-              onPress={handleCompleteWork}
-            >
-              <Text style={styles.completeBtnText}>MARK WORK COMPLETE</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
+        ) : hasWorkerWaitingForArrival ? (
           <View style={styles.qrCard}>
             <Text style={styles.qrTitle}>Worker Verification</Text>
             <Text style={styles.qrDesc}>
-              Worker location par pahunchne ke baad uski New Duty screen se QR
-              scan karke arrival verify karein.
+              Jo worker location par aa gaya hai uska QR scan karein ya 6 digit code
+              enter karke arrival verify karein.
             </Text>
 
             <TouchableOpacity
@@ -688,9 +1009,24 @@ export default function ActiveBooking() {
               onPress={openWorkerScanner}
             >
               <QrCode color="#FFFFFF" size={24} />
-              <Text style={styles.scanWorkerQrButtonText}>SCAN WORKER QR</Text>
+              <Text style={styles.scanWorkerQrButtonText}>VERIFY WORKER</Text>
             </TouchableOpacity>
             <Text style={styles.bookingIdText}>Booking ID: #{booking.id}</Text>
+          </View>
+        ) : allActiveWorkersArrived && activeIncompleteWorkers.length > 0 ? (
+          <View style={styles.completeCard}>
+            <Text style={styles.qrTitle}>Work in Progress</Text>
+            <Text style={styles.qrDesc}>
+              Har worker ka timer upar dikh raha hai. Jiska kaam complete ho,
+              usi worker ko separately Mark Complete karein.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.completeCard}>
+            <Text style={styles.qrTitle}>Workers Completed</Text>
+            <Text style={styles.qrDesc}>
+              Completed workers release ho chuke hain.
+            </Text>
           </View>
         )}
 
@@ -966,13 +1302,15 @@ const styles = StyleSheet.create({
   workerCard: {
     backgroundColor: "#fff",
     padding: 15,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    borderRadius: 18,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+  },
+  workerCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   workerInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
   avatarPlaceholder: {
@@ -982,6 +1320,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
+  },
+  avatarLetter: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#9CA3AF",
   },
   workerTextGroup: { marginLeft: 15, flex: 1 },
   workerName: { fontSize: 16, fontWeight: "800", color: "#111827" },
@@ -999,6 +1342,66 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     justifyContent: "center",
     alignItems: "center",
+  },
+  workerDurationRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: "#ECFDF5",
+    gap: 7,
+  },
+  workerDurationText: {
+    color: "#087C49",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  workerTimerBox: {
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  workerTimerBoxOvertime: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  workerTimerLabel: {
+    color: "#047857",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  workerTimerLabelOvertime: { color: "#B91C1C" },
+  workerTimerValue: {
+    color: "#111827",
+    fontSize: 26,
+    fontWeight: "900",
+    marginTop: 3,
+    fontVariant: ["tabular-nums"],
+  },
+  workerTimerValueOvertime: { color: "#DC2626" },
+  workerCompleteBtn: {
+    marginTop: 12,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  workerCompleteBtnDisabled: { opacity: 0.65 },
+  workerCompleteBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "900",
   },
 
   qrCard: {
@@ -1057,58 +1460,151 @@ const styles = StyleSheet.create({
 
   customerScannerContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#000000",
+    backgroundColor: "rgba(17,24,39,0.72)",
     elevation: 30,
     zIndex: 100,
-  },
-  customerScannerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.58)",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
+  },
+  customerScannerCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    overflow: "hidden",
+    paddingBottom: 20,
+  },
+  customerScannerTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 14,
   },
   customerScannerTitle: {
-    color: "#FFFFFF",
-    fontSize: 24,
+    color: "#111827",
+    fontSize: 22,
     fontWeight: "900",
   },
   customerScannerDescription: {
-    color: "#E5E7EB",
-    fontSize: 14,
+    color: "#6B7280",
+    fontSize: 12,
     fontWeight: "600",
-    lineHeight: 20,
-    marginBottom: 24,
-    marginTop: 8,
-    maxWidth: 310,
-    textAlign: "center",
+    lineHeight: 18,
+    marginTop: 4,
+    maxWidth: 260,
+  },
+  customerScannerCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customerScannerCameraArea: {
+    height: 300,
+    marginHorizontal: 16,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#0F172A",
+    alignItems: "center",
+    justifyContent: "center",
   },
   customerScannerFrame: {
-    backgroundColor: "transparent",
-    borderColor: "#10B981",
+    position: "absolute",
+    width: 210,
+    height: 210,
     borderRadius: 24,
     borderWidth: 4,
-    height: 250,
-    width: 250,
+    borderColor: "#10B981",
+    backgroundColor: "transparent",
+  },
+  cameraUnavailableBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  cameraUnavailableTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 10,
+  },
+  cameraUnavailableText: {
+    color: "#D1D5DB",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 5,
+  },
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 22,
+    marginTop: 17,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E5E7EB",
+  },
+  orText: {
+    color: "#6B7280",
+    fontSize: 12,
+    fontWeight: "900",
+    marginHorizontal: 12,
+  },
+  manualCodeTitle: {
+    color: "#111827",
+    fontSize: 16,
+    fontWeight: "900",
+    textAlign: "center",
+    marginTop: 13,
+  },
+  manualCodeRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 7,
+    marginTop: 12,
+    paddingHorizontal: 12,
+  },
+  manualCodeInput: {
+    width: 44,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    backgroundColor: "#F0FDF4",
+    color: "#065F46",
+    fontSize: 23,
+    fontWeight: "900",
+    textAlign: "center",
+    padding: 0,
+  },
+  manualCodeHelp: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    lineHeight: 16,
+    textAlign: "center",
+    marginTop: 10,
+    paddingHorizontal: 24,
   },
   customerScannerLoading: {
+    alignSelf: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.7)",
-    borderRadius: 22,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 18,
     flexDirection: "row",
-    marginTop: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
   customerScannerLoadingText: {
-    color: "#FFFFFF",
-    fontSize: 13,
+    color: "#047857",
+    fontSize: 12,
     fontWeight: "800",
-    marginLeft: 9,
-  },
-  closeCustomerScanner: {
-    bottom: 42,
-    position: "absolute",
+    marginLeft: 8,
   },
 
   // NEW STYLES
@@ -1142,6 +1638,30 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
+  callMitraBtn: {
+    backgroundColor: "#111827",
+    minHeight: 64,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    marginBottom: 22,
+  },
+  callMitraTextWrap: { marginLeft: 12, flex: 1 },
+  callMitraBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 16,
+  },
+  callMitraBtnSub: {
+    color: "#D1D5DB",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+
+  // Cancellation UI is intentionally kept in code for future re-enable,
+  // but its trigger is currently hidden/replaced by Call Mitra.
   raiseIssueBtn: {
     backgroundColor: "#FEF2F2",
     borderWidth: 1,

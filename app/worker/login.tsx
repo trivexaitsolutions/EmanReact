@@ -1,7 +1,7 @@
 // app/worker/login.tsx
 import axios from "axios";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,13 @@ export default function WorkerLoginScreen() {
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState(""); // Backend ke liye variable name password hi rakha hai
   const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const keepFormVisible = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  };
 
   const handleLogin = async () => {
     if (!loginId || password.length === 0) {
@@ -66,11 +73,17 @@ export default function WorkerLoginScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
     >
       <ScrollView
+        ref={scrollRef}
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContainer}
         bounces={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
       >
         {/* Top Yellow Header Background */}
         <View style={styles.topHeader} />
@@ -112,6 +125,9 @@ export default function WorkerLoginScreen() {
               keyboardType="numeric" // Changes keyboard to number pad for PIN
               value={password}
               onChangeText={setPassword}
+              onFocus={keepFormVisible}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
             />
           </View>
 
@@ -145,9 +161,11 @@ export default function WorkerLoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1, backgroundColor: "#FFFFFF" },
   scrollContainer: {
     flexGrow: 1,
     backgroundColor: "#FFFFFF",
+    paddingBottom: 140,
   },
   topHeader: {
     height: 180,

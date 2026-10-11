@@ -2,11 +2,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack, useFocusEffect } from "expo-router";
-import { CheckCircle2, MapPin } from "lucide-react-native";
+import { CheckCircle2, MapPin, PhoneCall } from "lucide-react-native";
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -17,37 +18,15 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import { API_URL } from "../../constants/api";
 
-const MITRA_HOLD_DURATION_MS = 3000;
-
 export default function ActiveDuty() {
   const [dutyData, setDutyData] = useState<any>(null);
   const [workerSession, setWorkerSession] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isHoldingMitra, setIsHoldingMitra] = useState(false);
-  const [mitraHoldProgress, setMitraHoldProgress] = useState(0);
-  const [isConnectingMitra, setIsConnectingMitra] = useState(false);
+  const [isCallingMitra, setIsCallingMitra] = useState(false);
 
-  const mitraHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mitraHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mitraHoldCompletedRef = useRef(false);
-  const cancellationRequestedRef = useRef(false);
   const navigationStartedRef = useRef(false);
 
-  const clearMitraHoldTimers = useCallback(() => {
-    if (mitraHoldTimeoutRef.current) {
-      clearTimeout(mitraHoldTimeoutRef.current);
-      mitraHoldTimeoutRef.current = null;
-    }
-
-    if (mitraHoldIntervalRef.current) {
-      clearInterval(mitraHoldIntervalRef.current);
-      mitraHoldIntervalRef.current = null;
-    }
-  }, []);
-
   const fetchCurrentDuty = useCallback(async () => {
-    if (cancellationRequestedRef.current) return;
-
     try {
       const session = await AsyncStorage.getItem("workerSession");
       if (!session) {
@@ -61,8 +40,6 @@ export default function ActiveDuty() {
       const response = await axios.get(
         `${API_URL}/user/worker/current-duty/${parsedWorker.id}`,
       );
-
-      if (cancellationRequestedRef.current) return;
 
       if (!response.data.success || !response.data.duty) {
         if (!navigationStartedRef.current) {
@@ -106,107 +83,49 @@ export default function ActiveDuty() {
 
       return () => {
         clearInterval(dutyPoller);
-        clearMitraHoldTimers();
       };
-    }, [clearMitraHoldTimers, fetchCurrentDuty]),
+    }, [fetchCurrentDuty]),
   );
 
-  const connectMitraAndCancelDuty = async () => {
-    if (cancellationRequestedRef.current || isConnectingMitra) return;
+  const callAssignedMitra = async () => {
+    if (isCallingMitra) return;
 
     try {
-      cancellationRequestedRef.current = true;
-      setIsConnectingMitra(true);
+      setIsCallingMitra(true);
 
-      const session = await AsyncStorage.getItem("workerSession");
-      if (!session) {
-        cancellationRequestedRef.current = false;
-        Alert.alert("Session Error", "Please login again.");
+      let workerId = Number(workerSession?.id || 0);
+      if (!workerId) {
+        const session = await AsyncStorage.getItem("workerSession");
+        if (session) {
+          workerId = Number(JSON.parse(session)?.id || 0);
+        }
+      }
+
+      if (!workerId) {
+        Alert.alert("Error", "Worker session missing hai.");
         return;
       }
 
-      const parsedWorker = JSON.parse(session);
-      const response = await axios.post(`${API_URL}/user/conflicts/create`, {
-        bookingId: dutyData.id,
-        workerId: parsedWorker.id,
-        raisedBy: "WORKER",
-        reason: "Worker requested Mitra assistance",
-        description: "Direct request raised through the worker app.",
-        continueWork: false,
-        requestedAction: "CANCEL_DUTY",
-      });
+      const response = await axios.get(`${API_URL}/worker/profile/${workerId}`);
+      const phone = response.data?.worker?.mitra?.phone;
 
-      if (!response.data.success) {
-        cancellationRequestedRef.current = false;
-        Alert.alert(
-          "Failed",
-          response.data.message || "Mitra request create nahi ho payi.",
-        );
+      if (!response.data?.success || !phone) {
+        Alert.alert("Mitra Not Found", "Assigned Mitra ka mobile number available nahi hai.");
         return;
       }
 
-      Alert.alert(
-        "Mitra Connected",
-        "Duty cancel ho gayi hai aur Mitra ko request bhej di gayi hai.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              if (navigationStartedRef.current) return;
-              navigationStartedRef.current = true;
-              router.replace("/worker/dashboard");
-            },
-          },
-        ],
-      );
+      const dialNumber = String(phone).replace(/[^\d+]/g, "");
+      const dialUrl = `tel:${dialNumber}`;
+      await Linking.openURL(dialUrl);
     } catch (error: any) {
-      cancellationRequestedRef.current = false;
-      console.log("Worker Mitra Request Error:", error?.response?.data || error);
+      console.log("Call Mitra error:", error?.response?.data || error);
       Alert.alert(
-        "Server Error",
-        error?.response?.data?.message || "Mitra se connect nahi ho paya.",
+        "Error",
+        error?.response?.data?.message || "Mitra ka number load nahi ho paya.",
       );
     } finally {
-      setIsConnectingMitra(false);
-      setIsHoldingMitra(false);
-      setMitraHoldProgress(0);
-      mitraHoldCompletedRef.current = false;
+      setIsCallingMitra(false);
     }
-  };
-
-  const startMitraHold = () => {
-    if (cancellationRequestedRef.current || isConnectingMitra || isHoldingMitra) {
-      return;
-    }
-
-    clearMitraHoldTimers();
-    mitraHoldCompletedRef.current = false;
-    setIsHoldingMitra(true);
-    setMitraHoldProgress(0);
-
-    const holdStartedAt = Date.now();
-    mitraHoldIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - holdStartedAt;
-      setMitraHoldProgress(
-        Math.min(100, (elapsed / MITRA_HOLD_DURATION_MS) * 100),
-      );
-    }, 50);
-
-    mitraHoldTimeoutRef.current = setTimeout(() => {
-      mitraHoldCompletedRef.current = true;
-      clearMitraHoldTimers();
-      setMitraHoldProgress(100);
-      setIsHoldingMitra(false);
-      void connectMitraAndCancelDuty();
-    }, MITRA_HOLD_DURATION_MS);
-  };
-
-  const cancelMitraHold = () => {
-    if (mitraHoldCompletedRef.current) return;
-
-    clearMitraHoldTimers();
-    setIsHoldingMitra(false);
-    setMitraHoldProgress(0);
   };
 
   if (isLoading) {
@@ -283,37 +202,37 @@ export default function ActiveDuty() {
             />
           </View>
 
+          <View style={styles.manualCodeBox}>
+            <Text style={styles.manualCodeLabel}>OR USE 6 DIGIT CODE</Text>
+            <Text style={styles.manualCodeValue}>
+              {String(dutyData.arrivalCode || "------")}
+            </Text>
+            <Text style={styles.manualCodeHint}>
+              Camera problem ho to customer ye code enter kare. Code har 10 minute mein badalta hai.
+            </Text>
+          </View>
+
           <View style={styles.bookingChip}>
             <Text style={styles.bookingChipText}>Booking #{dutyData.id}</Text>
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.issueButton}
-          activeOpacity={0.9}
-          disabled={isConnectingMitra || cancellationRequestedRef.current}
-          onPressIn={startMitraHold}
-          onPressOut={cancelMitraHold}
+          style={styles.callButton}
+          activeOpacity={0.85}
+          disabled={isCallingMitra}
+          onPress={callAssignedMitra}
         >
-          <View
-            pointerEvents="none"
-            style={[
-              styles.issueProgress,
-              { width: `${mitraHoldProgress}%` as `${number}%` },
-            ]}
-          />
-          <View style={styles.issueContent}>
-            {isConnectingMitra ? (
-              <ActivityIndicator color="#B91C1C" size="small" />
-            ) : null}
-            <Text style={styles.issueTitle}>Any issue, Connect Mitra</Text>
-            <Text style={styles.issueHint}>
-              {isConnectingMitra
-                ? "Sending request..."
-                : isHoldingMitra
-                  ? "Keep holding..."
-                  : "Hold for 3 seconds"}
-            </Text>
+          <View style={styles.callIconWrap}>
+            {isCallingMitra ? (
+              <ActivityIndicator color="#047857" size="small" />
+            ) : (
+              <PhoneCall color="#047857" size={25} />
+            )}
+          </View>
+          <View style={styles.callTextWrap}>
+            <Text style={styles.callTitle}>Call Mitra</Text>
+            <Text style={styles.callSub}>Need help? Tap to call</Text>
           </View>
         </TouchableOpacity>
       </ScrollView>
@@ -439,6 +358,38 @@ const styles = StyleSheet.create({
     marginTop: 18,
     marginBottom: 14,
   },
+  manualCodeBox: {
+    width: "100%",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  manualCodeLabel: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  manualCodeValue: {
+    color: "#0B7A55",
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: "900",
+    letterSpacing: 8,
+    marginTop: 4,
+  },
+  manualCodeHint: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 2,
+  },
   bookingChip: {
     backgroundColor: "#ECFDF5",
     borderRadius: 16,
@@ -450,39 +401,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
-  issueButton: {
-    position: "relative",
-    minHeight: 72,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    justifyContent: "center",
+  callButton: {
+    minHeight: 78,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
   },
-  issueProgress: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    backgroundColor: "#FECACA",
-  },
-  issueContent: {
-    zIndex: 1,
+  callIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#ECFDF5",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginRight: 13,
   },
-  issueTitle: {
-    color: "#B91C1C",
-    fontSize: 17,
+  callTextWrap: {
+    flex: 1,
+  },
+  callTitle: {
+    color: "#111827",
+    fontSize: 19,
     fontWeight: "900",
   },
-  issueHint: {
-    color: "#991B1B",
+  callSub: {
+    color: "#6B7280",
     fontSize: 12,
     fontWeight: "700",
-    marginTop: 4,
+    marginTop: 3,
   },
 });

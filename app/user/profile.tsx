@@ -1,3 +1,4 @@
+import { API_URL } from "../../constants/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CommonActions } from "@react-navigation/native";
 import { router, Stack, useNavigation } from "expo-router";
@@ -54,6 +55,20 @@ export default function UserProfile() {
              * Dono role sessions clear kar rahe hain, warna root screen kisi
              * purane worker session ko dekhkar automatic redirect kar sakti hai.
              */
+            const session = await AsyncStorage.getItem("customerSession");
+            if (session) {
+              const customerId = Number(JSON.parse(session)?.id);
+              if (Number.isInteger(customerId) && customerId > 0) {
+                // Immediately clear presence on logout (TTL handles failed requests).
+                try {
+                  await fetch(`${API_URL}/user/presence`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ customerId, online: false }),
+                  });
+                } catch (_) { /* Offline timeout is the fallback. */ }
+              }
+            }
             await AsyncStorage.multiRemove([
               "customerSession",
               "workerSession",

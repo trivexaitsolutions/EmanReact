@@ -1,24 +1,29 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { ResizeMode, Video } from "expo-av";
 import { router, Stack, useFocusEffect } from "expo-router";
 import {
   ArrowLeft,
   BriefcaseBusiness,
   Check,
   MapPin,
+  PlayCircle,
   RefreshCw,
   Star,
   User,
+  X,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
@@ -27,9 +32,16 @@ type WorkerOption = {
   id: number;
   name?: string | null;
   photoUrl?: string | null;
+  videoUrl?: string | null;
+  consentVoiceUrl?: string | null;
   age?: number | null;
   gender?: string | null;
   qualification?: string | null;
+  availabilityType?: string | null;
+  availabilityHours?: number | null;
+  baseRate?: number | null;
+  effectiveRate?: number | null;
+  poolNumber?: number | null;
   averageRating?: number;
   ratingCount?: number;
   mehnatRating?: number;
@@ -75,7 +87,18 @@ const formatRadius = (draft: BookingDraft) => {
     : `${meters} m`;
 };
 
+const MEDIA_BASE_URL = API_URL.replace(/\/api\/?$/, "");
+
+const resolveMediaUrl = (url?: string | null) => {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${MEDIA_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+};
+
 export default function BookWorkerSelectWorkers() {
+  const { height: windowHeight } = useWindowDimensions();
+  const videoModalHeight = Math.min(Math.max(windowHeight * 0.58, 360), 520);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isContinuing, setIsContinuing] = useState(false);
@@ -83,6 +106,7 @@ export default function BookWorkerSelectWorkers() {
   const [draft, setDraft] = useState<BookingDraft>({});
   const [workers, setWorkers] = useState<WorkerOption[]>([]);
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<number[]>([]);
+  const [videoWorker, setVideoWorker] = useState<WorkerOption | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -143,7 +167,12 @@ export default function BookWorkerSelectWorkers() {
         );
       }
 
-      const availableWorkers: WorkerOption[] = response.data.workers || [];
+      const availableWorkers: WorkerOption[] = (response.data.workers || []).map(
+        (worker: WorkerOption) => ({
+          ...worker,
+          videoUrl: worker.videoUrl || worker.consentVoiceUrl || null,
+        }),
+      );
       const availableWorkerIds = new Set(
         availableWorkers.map((worker) => Number(worker.id)),
       );
@@ -246,6 +275,15 @@ export default function BookWorkerSelectWorkers() {
     }
 
     setSelectedWorkerIds((current) => [...current, parsedWorkerId]);
+  };
+
+  const openWorkerVideo = (worker: WorkerOption) => {
+    if (!worker.videoUrl) {
+      Alert.alert("Video Not Available", "Is worker ka video abhi available nahi hai.");
+      return;
+    }
+
+    setVideoWorker(worker);
   };
 
   const handleNext = async () => {
@@ -423,10 +461,61 @@ export default function BookWorkerSelectWorkers() {
                     </Text>
                   </View>
 
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.durationBadgeText}>
+                      {worker.availabilityType === "SHORT_PERIOD"
+                        ? `${Number(worker.availabilityHours || 0)} Hours Work`
+                        : "Full Day Work"}
+                    </Text>
+                  </View>
+
+                  {Number.isFinite(Number(worker.effectiveRate)) && worker.effectiveRate != null ? (
+                    <View style={styles.priceRow}>
+                      <Text style={styles.workerPrice}>
+                        ₹{Number(worker.effectiveRate).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                      </Text>
+                      {Number(worker.baseRate || 0) > Number(worker.effectiveRate) ? (
+                        <Text style={styles.workerBasePrice}>
+                          ₹{Number(worker.baseRate).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.workerPoolLabel}>
+                        Pool {Number(worker.poolNumber || 1)} rate
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.workerPriceUnavailable}>Rate unavailable</Text>
+                  )}
+
                   <Text style={styles.ratingCountText}>
                     {Number(worker.ratingCount || 0)} rating
                     {Number(worker.ratingCount || 0) === 1 ? "" : "s"}
                   </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.82}
+                    style={[
+                      styles.videoButton,
+                      !worker.videoUrl && styles.videoButtonDisabled,
+                    ]}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      openWorkerVideo(worker);
+                    }}
+                  >
+                    <PlayCircle
+                      size={18}
+                      color={worker.videoUrl ? "#16863A" : "#9CA3AF"}
+                    />
+                    <Text
+                      style={[
+                        styles.videoButtonText,
+                        !worker.videoUrl && styles.videoButtonTextDisabled,
+                      ]}
+                    >
+                      {worker.videoUrl ? "View Video" : "Video Not Available"}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
                 <View
@@ -471,6 +560,45 @@ export default function BookWorkerSelectWorkers() {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={Boolean(videoWorker)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVideoWorker(null)}
+      >
+        <View style={styles.videoModalBackdrop}>
+          <View style={styles.videoModalCard}>
+            <View style={styles.videoModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.videoModalTitle}>Worker Video</Text>
+                <Text style={styles.videoModalName} numberOfLines={1}>
+                  {videoWorker?.name || "Worker"}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.videoCloseButton}
+                onPress={() => setVideoWorker(null)}
+              >
+                <X size={24} color="#111827" />
+              </TouchableOpacity>
+            </View>
+
+            {videoWorker?.videoUrl ? (
+              <View style={[styles.videoStage, { height: videoModalHeight }]}>
+                <Video
+                  source={{ uri: resolveMediaUrl(videoWorker.videoUrl) || "" }}
+                  style={styles.videoPlayer}
+                  useNativeControls
+                  resizeMode={ResizeMode.CONTAIN}
+                  shouldPlay
+                />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -599,11 +727,61 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   infoText: { flex: 1, color: "#606870", fontSize: 13, fontWeight: "600" },
+  durationBadge: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "#EAF8EF",
+  },
+  durationBadgeText: {
+    color: "#087C49",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 9,
+  },
+  workerPrice: { fontSize: 21, fontWeight: "900", color: "#087C49" },
+  workerBasePrice: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    textDecorationLine: "line-through",
+  },
+  workerPoolLabel: { fontSize: 11, color: "#5B6470", fontWeight: "700" },
+  workerPriceUnavailable: { marginTop: 9, color: "#B45309", fontWeight: "700" },
   ratingCountText: {
     marginTop: 7,
     color: "#8A8F95",
     fontSize: 12,
     fontWeight: "600",
+  },
+  videoButton: {
+    alignSelf: "flex-start",
+    marginTop: 9,
+    minHeight: 38,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#ECF8EF",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  videoButtonDisabled: {
+    backgroundColor: "#F3F4F6",
+  },
+  videoButtonText: {
+    color: "#16863A",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  videoButtonTextDisabled: {
+    color: "#9CA3AF",
   },
   checkCircle: {
     width: 30,
@@ -646,6 +824,60 @@ const styles = StyleSheet.create({
     backgroundColor: "#ECF8EF",
   },
   changeNakaButtonText: { color: "#16863A", fontWeight: "800" },
+  videoModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
+  videoModalCard: {
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+    overflow: "hidden",
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+  },
+  videoModalHeader: {
+    minHeight: 68,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF0EE",
+  },
+  videoModalTitle: {
+    color: "#111827",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  videoModalName: {
+    marginTop: 2,
+    color: "#16863A",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  videoCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  videoStage: {
+    width: "100%",
+    backgroundColor: "#000000",
+    overflow: "hidden",
+  },
+  videoPlayer: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#000000",
+  },
   bottomSpace: { height: 110 },
   footer: {
     paddingHorizontal: 18,
