@@ -6,7 +6,7 @@ import {
   Calendar,
   ChevronLeft,
   Clock,
-  IndianRupee,
+  Wallet,
   Users,
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { formatBookingRupees } from "../../utils/bookingMoney";
 
 export default function BookingHistory() {
   const [history, setHistory] = useState([]);
@@ -111,8 +112,8 @@ export default function BookingHistory() {
           </Text>
         </View>
         <View style={styles.detailItem}>
-          <IndianRupee color="#6B7280" size={18} />
-          <Text style={styles.detailValue}>₹{item.totalAmount}</Text>
+          <Wallet color="#6B7280" size={18} />
+          <Text style={styles.detailValue}>{formatBookingRupees(item.totalAmount ?? item.amount)}</Text>
         </View>
       </View>
     </TouchableOpacity>

@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
     Calendar,
     ChevronLeft,
-    IndianRupee,
+    Wallet,
     MapPin,
     Star,
     User,
@@ -20,6 +20,7 @@ import {
     View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import { formatBookingRupees } from "../../utils/bookingMoney";
 
 export default function BookingDetails() {
   const { id } = useLocalSearchParams(); // History page se jo ID aayi hai
@@ -64,6 +65,9 @@ export default function BookingDetails() {
   // Check if rating is already given (Backend se isRated aayega, ya rating check karenge)
   // Abhi ke liye hum assume kar rahe hain ki backend `isRated` boolean bhej raha hai
   const isRated = booking.isRated || false;
+  const charges = new Map<number, any>(
+    (booking.workerCharges || []).map((item: any) => [Number(item.workerId), item]),
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -130,10 +134,14 @@ export default function BookingDetails() {
           </View>
 
           <View style={styles.detailRow}>
-            <IndianRupee color="#6B7280" size={20} />
+            <Wallet color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Total Paid</Text>
-              <Text style={styles.detailValue}>₹{booking.totalAmount}</Text>
+              <Text style={styles.detailLabel}>
+                {booking.razorpayPaymentId ? "Total Paid" : "Booking Amount"}
+              </Text>
+              <Text style={styles.detailValue}>
+                {formatBookingRupees(booking.totalAmount ?? booking.amount)}
+              </Text>
             </View>
           </View>
         </View>
@@ -160,6 +168,20 @@ export default function BookingDetails() {
                   {worker.name || "Verified Worker"}
                 </Text>
                 <Text style={styles.workerPhone}>{worker.phone}</Text>
+                {charges.get(Number(worker.id))?.poolNumber != null ? (
+                  <Text style={styles.poolPriceLabel}>
+                    Pool {charges.get(Number(worker.id)).poolNumber}
+                    {charges.get(Number(worker.id))?.baseRate != null
+                      ? ` · Base ${formatBookingRupees(charges.get(Number(worker.id)).baseRate)}`
+                      : ""}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={styles.workerChargeBlock}>
+                <Text style={styles.workerChargeCaption}>Charged</Text>
+                <Text style={styles.workerCharge}>
+                  {formatBookingRupees(charges.get(Number(worker.id))?.amount)}
+                </Text>
               </View>
             </View>
           ))}
@@ -291,6 +313,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   borderBottom: { borderBottomWidth: 1, borderColor: "#F3F4F6" },
+  workerChargeBlock: { alignItems: "flex-end", maxWidth: 125, marginLeft: 8 },
+  workerChargeCaption: { fontSize: 11, color: "#6B7280" },
+  workerCharge: { fontWeight: "800", fontSize: 14, color: "#047857", textAlign: "right" },
+  poolPriceLabel: { fontSize: 11, color: "#64748B", marginTop: 3 },
   avatar: {
     width: 40,
     height: 40,

@@ -61,13 +61,16 @@ const formatTimer = (totalSeconds: number) => {
 export default function ActiveBooking() {
   const [booking, setBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showScanner, setShowScanner] = useState(false);
   const [hasScanned, setHasScanned] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [verificationFailed, setVerificationFailed] = useState(false);
   const [isVerifyingWorker, setIsVerifyingWorker] = useState(false);
   const [manualCodeDigits, setManualCodeDigits] = useState<string[]>([
     "", "", "", "", "", "",
   ]);
   const manualCodeInputRefs = useRef<Array<TextInput | null>>([]);
+  const lastVerifiedWorkerIdRef = useRef<number | null>(null);
+  const scanCooldownUntilRef = useRef(0);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [nowTick, setNowTick] = useState(Date.now());
   const [isCompletingWorkerId, setIsCompletingWorkerId] = useState<number | null>(null);
@@ -278,25 +281,31 @@ export default function ActiveBooking() {
     );
   };
 
-  const openWorkerScanner = async () => {
-    setHasScanned(false);
-    setManualCodeDigits(["", "", "", "", "", ""]);
-    setShowScanner(true);
-
-    if (!cameraPermission?.granted) {
-      try {
-        await requestCameraPermission();
-      } catch (error) {
-        console.log("Camera permission request error:", error);
-      }
+  // The scanner lives on the booking screen. Request permission once when a
+  // pending arrival exists; manual entry remains usable if permission is denied.
+  useEffect(() => {
+    if (!booking || cameraPermission?.status !== "undetermined") return;
+    const arrived = parseIdList(booking.arrivedWorkerIds);
+    const cancelled = parseIdList(booking.cancelledWorkerIds);
+    const completed = parseIdList(booking.completedWorkerIds);
+    lastVerifiedWorkerIdRef.current = null;
+    const waiting = (booking.workers || []).some((worker: any) => {
+      const id = Number(worker.id);
+      return !arrived.includes(id) && !cancelled.includes(id) && !completed.includes(id);
+    });
+    if (waiting && booking.status !== "CANCELLED") {
+      void requestCameraPermission().catch((error) =>
+        console.log("Camera permission request error:", error),
+      );
     }
-  };
+  }, [booking?.id, cameraPermission?.status]);
 
   const submitManualWorkerCode = async (manualCode: string) => {
     if (isVerifyingWorker || manualCode.length !== 6) return;
 
     setIsVerifyingWorker(true);
     setHasScanned(true);
+    setVerificationMessage("");
 
     try {
       const response = await axios.post(`${API_URL}/user/worker/verify-code`, {
@@ -309,14 +318,13 @@ export default function ActiveBooking() {
         throw new Error(response.data.message || "Code verification failed");
       }
 
-      setShowScanner(false);
-      setManualCodeDigits(["", "", "", "", "", ""]);
+      lastVerifiedWorkerIdRef.current = Number(response.data.worker?.id) || null;
       await fetchActiveBooking();
+      setManualCodeDigits(["", "", "", "", "", ""]);
+      setHasScanned(false);
 
-      Alert.alert(
-        "Worker Verified",
-        response.data.message || "Worker arrival successfully verified.",
-      );
+      setVerificationFailed(false);
+      setVerificationMessage(response.data.message || "Worker verified successfully.");
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
@@ -324,16 +332,11 @@ export default function ActiveBooking() {
         "6 digit code verify nahi ho paya.";
 
       const isExpired = error?.response?.data?.code === "EXPIRED_ARRIVAL_CODE";
-      Alert.alert(isExpired ? "Code Expired" : "Invalid Code", message, [
-        {
-          text: "Try Again",
-          onPress: () => {
-            setManualCodeDigits(["", "", "", "", "", ""]);
-            setHasScanned(false);
-            setTimeout(() => manualCodeInputRefs.current[0]?.focus(), 100);
-          },
-        },
-      ]);
+      setVerificationFailed(true);
+      setVerificationMessage(`${isExpired ? "Code expired: " : "Invalid code: "}${message}`);
+      setManualCodeDigits(["", "", "", "", "", ""]);
+      setHasScanned(false);
+      setTimeout(() => manualCodeInputRefs.current[0]?.focus(), 100);
     } finally {
       setIsVerifyingWorker(false);
     }
@@ -374,10 +377,11 @@ export default function ActiveBooking() {
   };
 
   const handleWorkerQrScanned = async ({ data }: { data: string }) => {
-    if (hasScanned || isVerifyingWorker) return;
+    if (hasScanned || isVerifyingWorker || Date.now() < scanCooldownUntilRef.current) return;
 
     setHasScanned(true);
     setIsVerifyingWorker(true);
+    setVerificationMessage("");
 
     try {
       const qrData = JSON.parse(data);
@@ -392,6 +396,15 @@ export default function ActiveBooking() {
         throw new Error("INVALID_WORKER_QR");
       }
 
+      if (
+        lastVerifiedWorkerIdRef.current === scannedWorkerId ||
+        parseIdList(booking.arrivedWorkerIds).includes(scannedWorkerId)
+      ) {
+        // Camera may still see the previous worker's QR after a successful scan.
+        setHasScanned(false);
+        return;
+      }
+
       const response = await axios.post(`${API_URL}/user/worker/verify-qr`, {
         bookingId: scannedBookingId,
         workerId: scannedWorkerId,
@@ -402,13 +415,13 @@ export default function ActiveBooking() {
         throw new Error(response.data.message || "QR verification failed");
       }
 
-      setShowScanner(false);
+      lastVerifiedWorkerIdRef.current = scannedWorkerId;
       await fetchActiveBooking();
+      setManualCodeDigits(["", "", "", "", "", ""]);
+      setHasScanned(false);
 
-      Alert.alert(
-        "Worker Verified",
-        response.data.message || "Worker arrival successfully verified.",
-      );
+      setVerificationFailed(false);
+      setVerificationMessage(response.data.message || "Worker verified successfully.");
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
@@ -416,17 +429,10 @@ export default function ActiveBooking() {
           ? "Ye is booking ke worker ka valid QR nahi hai."
           : "Worker QR verify nahi ho paya.");
 
-      Alert.alert("Invalid QR", message, [
-        {
-          text: "Scan Again",
-          onPress: () => setHasScanned(false),
-        },
-        {
-          text: "Close",
-          style: "cancel",
-          onPress: () => setShowScanner(false),
-        },
-      ]);
+      setVerificationFailed(true);
+      setVerificationMessage(message);
+      scanCooldownUntilRef.current = Date.now() + 2500;
+      setHasScanned(false);
     } finally {
       setIsVerifyingWorker(false);
     }
@@ -651,7 +657,11 @@ export default function ActiveBooking() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {showScanner && (
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Live Tracking</Text>
+      </View>
+
+      {hasWorkerWaitingForArrival && !isBookingCancelled && !allWorkersCancelled && (
         <View style={styles.customerScannerContainer}>
           <View style={styles.customerScannerCard}>
             <View style={styles.customerScannerTopRow}>
@@ -662,12 +672,7 @@ export default function ActiveBooking() {
                 </Text>
               </View>
 
-              <TouchableOpacity
-                style={styles.customerScannerCloseBtn}
-                onPress={() => setShowScanner(false)}
-              >
-                <XCircle color="#111827" size={32} />
-              </TouchableOpacity>
+
             </View>
 
             <View style={styles.customerScannerCameraArea}>
@@ -689,8 +694,11 @@ export default function ActiveBooking() {
                     Camera unavailable
                   </Text>
                   <Text style={styles.cameraUnavailableText}>
-                    Niche worker ka 6 digit code enter karein.
+                    Code enter karein ya camera allow karein.
                   </Text>
+                  <TouchableOpacity onPress={() => void requestCameraPermission()} style={styles.cameraPermissionBtn}>
+                    <Text style={styles.cameraPermissionBtnText}>Allow Camera</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -723,7 +731,7 @@ export default function ActiveBooking() {
                   maxLength={index === 0 ? 6 : 1}
                   selectTextOnFocus
                   style={styles.manualCodeInput}
-                  textContentType="oneTimeCode"
+                  textContentType={index === 0 ? "oneTimeCode" : "none"}
                 />
               ))}
             </View>
@@ -732,6 +740,11 @@ export default function ActiveBooking() {
               hote hi verification automatic hogi.
             </Text>
 
+            {!!verificationMessage && (
+              <Text style={[styles.inlineVerificationMessage, verificationFailed && styles.inlineVerificationError]}>
+                {verificationMessage}
+              </Text>
+            )}
             {isVerifyingWorker ? (
               <View style={styles.customerScannerLoading}>
                 <ActivityIndicator color="#047857" size="small" />
@@ -744,34 +757,7 @@ export default function ActiveBooking() {
         </View>
       )}
 
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Live Tracking</Text>
-      </View>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* SUCCESS BANNER */}
-        <View style={styles.banner}>
-          <CheckCircle2 color="#fff" size={32} />
-          <View style={{ marginLeft: 15 }}>
-            <Text style={styles.bannerTitle}>Booking Confirmed!</Text>
-            <Text style={styles.bannerSub}>
-              Workers are on their way to your location.
-            </Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.callMitraBtn}
-          activeOpacity={0.88}
-          onPress={handleCallMitra}
-        >
-          <Phone color="#FFFFFF" size={22} />
-          <View style={styles.callMitraTextWrap}>
-            <Text style={styles.callMitraBtnText}>Call Mitra</Text>
-            <Text style={styles.callMitraBtnSub}>Need help? Call your assigned Mitra</Text>
-          </View>
-        </TouchableOpacity>
-
         {/* WORKER LIST */}
         <Text style={styles.sectionTitle}>
           Assigned Workers ({booking.workers.length})
@@ -942,6 +928,29 @@ export default function ActiveBooking() {
           );
         })}
 
+        {/* SUCCESS BANNER */}
+        <View style={styles.banner}>
+          <CheckCircle2 color="#fff" size={32} />
+          <View style={{ marginLeft: 15 }}>
+            <Text style={styles.bannerTitle}>Booking Confirmed!</Text>
+            <Text style={styles.bannerSub}>
+              Workers are on their way to your location.
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.callMitraBtn}
+          activeOpacity={0.88}
+          onPress={handleCallMitra}
+        >
+          <Phone color="#FFFFFF" size={22} />
+          <View style={styles.callMitraTextWrap}>
+            <Text style={styles.callMitraBtnText}>Call Mitra</Text>
+            <Text style={styles.callMitraBtnSub}>Need help? Call your assigned Mitra</Text>
+          </View>
+        </TouchableOpacity>
+
         {/* QR Code vs Complete Button Logic */}
         {/* QR Code vs Complete Button Logic */}
         {/* QR Code vs Complete Button Logic */}
@@ -996,23 +1005,8 @@ export default function ActiveBooking() {
             </View>
           </View>
         ) : hasWorkerWaitingForArrival ? (
-          <View style={styles.qrCard}>
-            <Text style={styles.qrTitle}>Worker Verification</Text>
-            <Text style={styles.qrDesc}>
-              Jo worker location par aa gaya hai uska QR scan karein ya 6 digit code
-              enter karke arrival verify karein.
-            </Text>
-
-            <TouchableOpacity
-              activeOpacity={0.88}
-              style={styles.scanWorkerQrButton}
-              onPress={openWorkerScanner}
-            >
-              <QrCode color="#FFFFFF" size={24} />
-              <Text style={styles.scanWorkerQrButtonText}>VERIFY WORKER</Text>
-            </TouchableOpacity>
-            <Text style={styles.bookingIdText}>Booking ID: #{booking.id}</Text>
-          </View>
+          // Scanner and code are already permanently visible above the workers.
+          null
         ) : allActiveWorkersArrived && activeIncompleteWorkers.length > 0 ? (
           <View style={styles.completeCard}>
             <Text style={styles.qrTitle}>Work in Progress</Text>
@@ -1459,30 +1453,29 @@ const styles = StyleSheet.create({
   },
 
   customerScannerContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(17,24,39,0.72)",
-    elevation: 30,
-    zIndex: 100,
-    justifyContent: "center",
-    paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
   customerScannerCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
+    borderRadius: 16,
     overflow: "hidden",
-    paddingBottom: 20,
+    paddingBottom: 10,
   },
   customerScannerTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   customerScannerTitle: {
     color: "#111827",
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: "900",
   },
   customerScannerDescription: {
@@ -1502,9 +1495,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   customerScannerCameraArea: {
-    height: 300,
-    marginHorizontal: 16,
-    borderRadius: 24,
+    height: 174,
+    marginHorizontal: 8,
+    borderRadius: 14,
     overflow: "hidden",
     backgroundColor: "#0F172A",
     alignItems: "center",
@@ -1512,10 +1505,10 @@ const styles = StyleSheet.create({
   },
   customerScannerFrame: {
     position: "absolute",
-    width: 210,
-    height: 210,
-    borderRadius: 24,
-    borderWidth: 4,
+    width: 130,
+    height: 130,
+    borderRadius: 16,
+    borderWidth: 3,
     borderColor: "#10B981",
     backgroundColor: "transparent",
   },
@@ -1541,7 +1534,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 22,
-    marginTop: 17,
+    marginTop: 8,
   },
   orLine: {
     flex: 1,
@@ -1559,19 +1552,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
     textAlign: "center",
-    marginTop: 13,
+    marginTop: 6,
   },
   manualCodeRow: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 7,
-    marginTop: 12,
-    paddingHorizontal: 12,
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 8,
   },
   manualCodeInput: {
-    width: 44,
-    height: 52,
-    borderRadius: 14,
+    width: 43,
+    height: 46,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "#A7F3D0",
     backgroundColor: "#F0FDF4",
@@ -1587,9 +1580,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 16,
     textAlign: "center",
-    marginTop: 10,
-    paddingHorizontal: 24,
+    marginTop: 5,
+    paddingHorizontal: 12,
   },
+  cameraPermissionBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginTop: 8,
+    backgroundColor: "#059669",
+  },
+  cameraPermissionBtnText: { color: "#FFFFFF", fontWeight: "800" },
+  inlineVerificationMessage: {
+    color: "#047857", fontSize: 12, fontWeight: "800",
+    textAlign: "center", marginTop: 6, paddingHorizontal: 12,
+  },
+  inlineVerificationError: { color: "#B91C1C" },
   customerScannerLoading: {
     alignSelf: "center",
     alignItems: "center",
