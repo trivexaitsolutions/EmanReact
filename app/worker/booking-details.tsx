@@ -184,11 +184,11 @@ export default function WorkerBookingDetails() {
 
             {booking.fineStatus === "PENDING" ? (
               <Text style={styles.fineDescription}>
-                Mitra ne fine amount abhi finalize nahi kiya hai.
+                Field Agent ne fine amount abhi finalize nahi kiya hai.
               </Text>
             ) : (
               <Text style={styles.fineDescription}>
-                Ye Mitra ke final conflict decision ke hisab se fine hai.
+                Ye Field Agent ke final conflict decision ke hisab se fine hai.
               </Text>
             )}
 

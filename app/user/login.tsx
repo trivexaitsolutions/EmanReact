@@ -39,6 +39,10 @@ export default function CustomerLoginScreen() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [clientType, setClientType] = useState<"Individual" | "Company">("Individual");
+  const [businessName, setBusinessName] = useState("");
+  const [businessType, setBusinessType] = useState("Warehouse");
+  const [gstNumber, setGstNumber] = useState("");
 
   // OTP Field
   const [otp, setOtp] = useState("");
@@ -59,10 +63,18 @@ export default function CustomerLoginScreen() {
           setIsLoading(false);
           return;
         }
+        if (clientType === "Company" && !businessName.trim()) {
+          Alert.alert("Company Details", "Company name is required.");
+          return;
+        }
         payload = {
-          name: name.trim(),
+          name: name.trim().toLocaleUpperCase(),
           phone: phone.trim(),
           email: email.trim().toLowerCase(),
+          clientType,
+          businessName: clientType === "Company" ? businessName.trim().toLocaleUpperCase() : undefined,
+          businessType: clientType === "Company" ? businessType : undefined,
+          gstNumber: clientType === "Company" ? gstNumber.trim().toUpperCase() : undefined,
         };
       } else {
         // Purane user ke liye sirf loginId (Phone ya Email) chahiye
@@ -194,13 +206,44 @@ export default function CustomerLoginScreen() {
           {/* ----- REGISTER FIELDS (Sirf tab dikhenge jab New Login chuna ho) ----- */}
           {isRegisterMode ? (
             <>
+              <Text style={{ fontWeight: "700", color: "#334155", marginBottom: 8 }}>Registration Type</Text>
+              <View style={{ flexDirection: "row", gap: 12, marginBottom: 15 }}>
+                {(["Individual", "Company"] as const).map((type) => (
+                  <TouchableOpacity key={type} disabled={isOtpSent} onPress={() => setClientType(type)}
+                    style={{ flex: 1, padding: 12, borderRadius: 12, alignItems: "center", borderWidth: 1,
+                      borderColor: clientType === type ? "#059669" : "#CBD5E1", backgroundColor: clientType === type ? "#D1FAE5" : "#FFFFFF" }}>
+                    <Text style={{ color: "#064E3B", fontWeight: "700" }}>{type}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               <TextInput
                 style={styles.input}
                 placeholder="Full Name"
                 value={name}
-                onChangeText={setName}
+                onChangeText={value => setName(value.toLocaleUpperCase())}
+                autoCapitalize="characters"
                 editable={!isOtpSent}
               />
+              {clientType === "Company" && (
+                <>
+                  <TextInput style={styles.input} placeholder="Company Name *" value={businessName}
+                    onChangeText={value => setBusinessName(value.toLocaleUpperCase())}
+                    autoCapitalize="characters" editable={!isOtpSent} />
+                  <Text style={{ fontWeight: "700", color: "#334155", marginBottom: 8 }}>Industry Type</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 15 }}>
+                    {["Warehouse", "Construction", "Retail", "Other"].map(type => (
+                      <TouchableOpacity key={type} disabled={isOtpSent} onPress={() => setBusinessType(type)}
+                        style={{ paddingVertical: 8, paddingHorizontal: 11, borderRadius: 9, borderWidth: 1,
+                          borderColor: businessType === type ? "#059669" : "#CBD5E1", backgroundColor: businessType === type ? "#D1FAE5" : "#FFFFFF" }}>
+                        <Text>{type}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TextInput style={styles.input} placeholder="GST Number (optional)" value={gstNumber}
+                    onChangeText={value => setGstNumber(value.toUpperCase())}
+                    maxLength={15} autoCapitalize="characters" editable={!isOtpSent} />
+                </>
+              )}
               <TextInput
                 style={styles.input}
                 placeholder="Phone Number"

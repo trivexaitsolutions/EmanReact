@@ -110,7 +110,7 @@ export default function ActiveDuty() {
       const phone = response.data?.worker?.mitra?.phone;
 
       if (!response.data?.success || !phone) {
-        Alert.alert("Mitra Not Found", "Assigned Mitra ka mobile number available nahi hai.");
+        Alert.alert("Field Agent Not Found", "Assigned Field Agent ka mobile number available nahi hai.");
         return;
       }
 
@@ -118,10 +118,10 @@ export default function ActiveDuty() {
       const dialUrl = `tel:${dialNumber}`;
       await Linking.openURL(dialUrl);
     } catch (error: any) {
-      console.log("Call Mitra error:", error?.response?.data || error);
+      console.log("Call Field Agent error:", error?.response?.data || error);
       Alert.alert(
         "Error",
-        error?.response?.data?.message || "Mitra ka number load nahi ho paya.",
+        error?.response?.data?.message || "Field Agent ka number load nahi ho paya.",
       );
     } finally {
       setIsCallingMitra(false);
@@ -231,7 +231,7 @@ export default function ActiveDuty() {
             )}
           </View>
           <View style={styles.callTextWrap}>
-            <Text style={styles.callTitle}>Call Mitra</Text>
+            <Text style={styles.callTitle}>Call Field Agent</Text>
             <Text style={styles.callSub}>Need help? Tap to call</Text>
           </View>
         </TouchableOpacity>

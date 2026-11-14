@@ -220,8 +220,8 @@ export default function ActiveBooking() {
     const mitraPhone = booking?.customer?.mitra?.phone;
     if (!mitraPhone) {
       Alert.alert(
-        "Mitra Not Available",
-        "Assigned Mitra ka phone number available nahi hai.",
+        "Field Agent Not Available",
+        "Assigned Field Agent ka phone number available nahi hai.",
       );
       return;
     }
@@ -946,8 +946,8 @@ export default function ActiveBooking() {
         >
           <Phone color="#FFFFFF" size={22} />
           <View style={styles.callMitraTextWrap}>
-            <Text style={styles.callMitraBtnText}>Call Mitra</Text>
-            <Text style={styles.callMitraBtnSub}>Need help? Call your assigned Mitra</Text>
+            <Text style={styles.callMitraBtnText}>Call Field Agent</Text>
+            <Text style={styles.callMitraBtnSub}>Need help? Call your assigned Field Agent</Text>
           </View>
         </TouchableOpacity>
 
@@ -1667,7 +1667,7 @@ const styles = StyleSheet.create({
   },
 
   // Cancellation UI is intentionally kept in code for future re-enable,
-  // but its trigger is currently hidden/replaced by Call Mitra.
+  // but its trigger is currently hidden/replaced by Call Field Agent.
   raiseIssueBtn: {
     backgroundColor: "#FEF2F2",
     borderWidth: 1,

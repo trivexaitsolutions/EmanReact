@@ -179,7 +179,7 @@ export default function WorkerProfile() {
         </TouchableOpacity>
         {profile?.mitra?.name ? (
           <Text style={styles.supportHint}>
-            Your support Mitra: {profile.mitra.name}
+            Your support Field Agent: {profile.mitra.name}
           </Text>
         ) : null}
 

@@ -375,6 +375,11 @@ export default function WorkerDashboard() {
 
         {/* 4. Full Day Availability */}
         <Text style={styles.availabilitySectionLabel}>Full Day</Text>
+        {workerData?.ratePreview && (
+          <Text style={{ color: "#047857", fontWeight: "800", marginBottom: 9 }}>
+            From ₹{workerData.ratePreview.fullDay.toLocaleString("en-IN")} / 8 hours
+          </Text>
+        )}
 
         <TouchableOpacity
           activeOpacity={0.9}
@@ -441,6 +446,11 @@ export default function WorkerDashboard() {
                   </View>
                   <Text style={styles.slotHoursNumber}>{hours}</Text>
                   <Text style={styles.slotHoursText}>Hours</Text>
+                  {workerData?.ratePreview && (
+                    <Text style={{ color: "#047857", fontWeight: "800", fontSize: 13, marginTop: 5 }}>
+                      From ₹{Number(hours === 2 ? workerData.ratePreview.twoHours : hours === 3 ? workerData.ratePreview.threeHours : workerData.ratePreview.fourHours).toLocaleString("en-IN")}
+                    </Text>
+                  )}
                   <Text style={styles.slotHoldHint}>
                     {isThisSlotHolding ? "Keep Holding..." : "Hold 3 sec"}
                   </Text>
@@ -449,6 +459,11 @@ export default function WorkerDashboard() {
             );
           })}
         </View>
+        {workerData?.ratePreview && (
+          <Text style={{ color: "#64748B", fontSize: 11, marginTop: 10 }}>
+            Starting estimates. Actual payout depends on selected skill, rating and pool rate.
+          </Text>
+        )}
       </View>
 
       <WorkerBottomNav active="home" />

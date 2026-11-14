@@ -144,7 +144,7 @@ export default function WorkerHistory() {
 
             {item.fineStatus === "PENDING" ? (
               <Text style={styles.fineHint}>
-                Mitra ne fine abhi finalize nahi kiya hai.
+                Field Agent ne fine abhi finalize nahi kiya hai.
               </Text>
             ) : null}
 
