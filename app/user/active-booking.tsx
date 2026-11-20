@@ -75,6 +75,7 @@ export default function ActiveBooking() {
   const [nowTick, setNowTick] = useState(Date.now());
   const [isCompletingWorkerId, setIsCompletingWorkerId] = useState<number | null>(null);
 
+  const [showFieldAgentPicker, setShowFieldAgentPicker] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [selectedIssueReason, setSelectedIssueReason] = useState("");
   const [otherIssueText, setOtherIssueText] = useState("");
@@ -216,17 +217,24 @@ export default function ActiveBooking() {
     Linking.openURL(`tel:${phoneNumber}`);
   };
 
+  const getCallableFieldAgents = () => {
+    const fromBooking = Array.isArray(booking?.fieldAgents) ? booking.fieldAgents : [];
+    if (fromBooking.length) return fromBooking.filter((agent: any) => !!String(agent.phone || "").trim());
+    const fallback = booking?.fieldAgent || booking?.customer?.mitra;
+    return fallback?.phone ? [fallback] : [];
+  };
+
   const handleCallMitra = () => {
-    const mitraPhone = booking?.customer?.mitra?.phone;
-    if (!mitraPhone) {
-      Alert.alert(
-        "Field Agent Not Available",
-        "Assigned Field Agent ka phone number available nahi hai.",
-      );
+    const agents = getCallableFieldAgents();
+    if (agents.length === 0) {
+      Alert.alert("Field Agent Not Available", "Is booking ke worker ya service area se koi Field Agent contact abhi linked nahi hai. Please Admin se contact karein.");
       return;
     }
-
-    handleCall(String(mitraPhone));
+    if (agents.length === 1) {
+      handleCall(String(agents[0].phone));
+      return;
+    }
+    setShowFieldAgentPicker(true);
   };
 
   const handleCompleteWorker = async (workerId: number, workerName: string) => {
@@ -947,7 +955,7 @@ export default function ActiveBooking() {
           <Phone color="#FFFFFF" size={22} />
           <View style={styles.callMitraTextWrap}>
             <Text style={styles.callMitraBtnText}>Call Field Agent</Text>
-            <Text style={styles.callMitraBtnSub}>Need help? Call your assigned Field Agent</Text>
+            <Text style={styles.callMitraBtnSub}>Need help? Call the Field Agent linked to your worker</Text>
           </View>
         </TouchableOpacity>
 
@@ -1026,6 +1034,33 @@ export default function ActiveBooking() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={showFieldAgentPicker} transparent animationType="slide" onRequestClose={() => setShowFieldAgentPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Call Field Agent</Text>
+            <Text style={styles.modalSubTitle}>Select the agent linked to your booked worker.</Text>
+            <ScrollView style={{ maxHeight: 330 }}>
+              {getCallableFieldAgents().map((agent: any) => (
+                <TouchableOpacity
+                  key={String(agent.id)}
+                  style={styles.fieldAgentOption}
+                  onPress={() => {
+                    setShowFieldAgentPicker(false);
+                    handleCall(String(agent.phone));
+                  }}
+                >
+                  <Text style={styles.fieldAgentName}>{agent.name || "Field Agent"}</Text>
+                  <Text style={styles.fieldAgentNumber}>{agent.phone}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity onPress={() => setShowFieldAgentPicker(false)} style={styles.fieldAgentClose}>
+              <Text style={styles.fieldAgentCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showIssueModal}
@@ -1249,6 +1284,11 @@ export default function ActiveBooking() {
 }
 
 const styles = StyleSheet.create({
+  fieldAgentOption: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, padding: 14, marginVertical: 6 },
+  fieldAgentName: { fontSize: 14, fontWeight: "800", color: "#111827" },
+  fieldAgentNumber: { marginTop: 4, fontSize: 13, color: "#059669" },
+  fieldAgentClose: { backgroundColor: "#111827", borderRadius: 12, padding: 14, alignItems: "center", marginTop: 14 },
+  fieldAgentCloseText: { color: "#FFFFFF", fontWeight: "800" },
   container: { flex: 1, backgroundColor: "#F3F4F6" },
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {

@@ -158,13 +158,14 @@ export default function CustomerDashboard() {
       if (initResponse.data.success) {
         const orderData = initResponse.data.razorpayOrder;
         const bookingId = initResponse.data.bookingId;
+        if (!initResponse.data.razorpayKeyId) throw new Error("Payment gateway key missing.");
 
         // 3. Razorpay Popup Open Karo
         const options = {
           description: `Booking for ${workerCount} workers`,
           image: "https://your-company-logo-url.com/logo.png", // TrivexaIT ka logo daal sakte hain
           currency: "INR",
-          key: "rzp_test_SouUYINcIpP7iB", // Aapki Test Key ID
+          key: initResponse.data.razorpayKeyId, // Admin-managed public checkout key
           amount: orderData.amount,
           name: "E-MAN",
           order_id: orderData.id,

@@ -1,710 +1,464 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { router, Stack } from "expo-router";
+import * as Location from "expo-location";
+import { router, Stack, useLocalSearchParams } from "expo-router";
+import { ArrowLeft, CheckCircle2, Edit3, LocateFixed, MapPin, Plus, Trash2, X } from "lucide-react-native";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft,
-  CheckCircle2,
-  ChevronDown,
-  Edit3,
-  MapPin,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react-native";
-import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  ActivityIndicator, Alert, Modal, SafeAreaView, ScrollView, StyleSheet,
+  Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
 
+type Coordinate = { latitude: number; longitude: number };
+type BookingDraft = {
+  addressId?: number;
+  workLatitude?: number;
+  workLongitude?: number;
+  workAddress?: string;
+  selectedWorkerIds?: number[];
+  selectedWorkers?: unknown[];
+  selectedNakas?: unknown[];
+  nakaIds?: number[];
+  [key: string]: unknown;
+};
+
+const validCoordinate = (lat: unknown, lng: unknown): Coordinate | null => {
+  if (lat === null || lat === undefined || lng === null || lng === undefined ||
+      String(lat).trim() === "" || String(lng).trim() === "") return null;
+  const latitude = Number(lat), longitude = Number(lng);
+  return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+    ? { latitude, longitude } : null;
+};
+// Native Google Maps is intentionally not used on this screen. GPS and
+// reverse-geocoding are best-effort; a network/location failure must not
+// prevent a customer from saving the address description.
+async function withTimeout<T>(promise: Promise<T>, delayMs: number): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error("Location request timed out")), delayMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+  }
+}
+
+const distanceMeters = (a: Coordinate, b: Coordinate) => {
+  const rad = (v: number) => v * Math.PI / 180;
+  const dLat = rad(b.latitude - a.latitude), dLng = rad(b.longitude - a.longitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.latitude)) *
+    Math.cos(rad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+};
+
 export default function ManageAddresses() {
+  const { fromBooking } = useLocalSearchParams<{ fromBooking?: string }>();
+  const bookingMode = fromBooking === "1";
   const [customer, setCustomer] = useState<any>(null);
   const [addresses, setAddresses] = useState<any[]>([]);
-  const [cities, setCities] = useState<any[]>([]);
-  const [nakas, setNakas] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [showModal, setShowModal] = useState(false);
-  const [showCityModal, setShowCityModal] = useState(false);
-  const [showNakaModal, setShowNakaModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
-
   const [title, setTitle] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [addressLine, setAddressLine] = useState("");
   const [landmark, setLandmark] = useState("");
-
-  const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
-  const [selectedNakaId, setSelectedNakaId] = useState<number | null>(null);
-
   const [city, setCity] = useState("");
-  const [nakaName, setNakaName] = useState("");
   const [stateName, setStateName] = useState("");
   const [pincode, setPincode] = useState("");
+  const [mapAddress, setMapAddress] = useState("");
+  const [coordinate, setCoordinate] = useState<Coordinate | null>(null);
+  const [manualLatitude, setManualLatitude] = useState("");
+  const [manualLongitude, setManualLongitude] = useState("");
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [locationSource, setLocationSource] = useState("CURRENT_LOCATION");
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [isDefault, setIsDefault] = useState(false);
-
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  const loadInitialData = async () => {
-    try {
-      const session = await AsyncStorage.getItem("customerSession");
-
-      if (session) {
-        const parsed = JSON.parse(session);
-        setCustomer(parsed);
-        await fetchAddresses(parsed.id);
-      }
-
-      await fetchBookingOptions();
-    } catch (error) {
-      console.log("Initial load error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchBookingOptions = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/user/booking-options`);
-
-      if (response.data.success) {
-        setCities(response.data.cities || []);
-        setNakas(response.data.nakas || []);
-      }
-    } catch (error: any) {
-      console.log("Booking options error:", error?.response?.data || error);
-    }
-  };
+  const locationRequest = useRef(0);
 
   const fetchAddresses = async (customerId: number) => {
-    try {
-      const response = await axios.get(
-        `${API_URL}/user/customer-addresses/${customerId}`,
-      );
+    const response = await axios.get(`${API_URL}/user/customer-addresses/${customerId}`);
+    if (response.data.success) setAddresses(response.data.addresses || []);
+  };
 
-      if (response.data.success) {
-        setAddresses(response.data.addresses || []);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem("customerSession");
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        if (!mounted) return;
+        setCustomer(parsed);
+        await fetchAddresses(parsed.id);
+      } catch (error) {
+        console.log("Load addresses error:", error);
+        Alert.alert("Error", "Saved addresses load nahi ho paye.");
+      } finally {
+        if (mounted) setIsLoading(false);
       }
-    } catch (error: any) {
-      console.log("Fetch addresses error:", error?.response?.data || error);
+    })();
+    return () => { mounted = false; locationRequest.current += 1; };
+  }, []);
+
+  const resetForm = () => {
+    locationRequest.current += 1;
+    setEditingAddress(null);
+    setTitle(""); setFullName(customer?.name || ""); setPhone(customer?.phone || "");
+    setAddressLine(""); setLandmark(""); setCity(""); setStateName("");
+    setPincode(""); setMapAddress(""); setCoordinate(null); setAccuracy(null);
+    setManualLatitude(""); setManualLongitude("");
+    setLocationError(""); setLocationSource("CURRENT_LOCATION"); setIsDefault(false);
+  };
+
+  const applyCoordinate = async (position: Coordinate, source: string, gpsAccuracy: number | null = null) => {
+    const requestId = ++locationRequest.current;
+    setCoordinate(position);
+    setManualLatitude(position.latitude.toFixed(6));
+    setManualLongitude(position.longitude.toFixed(6));
+    setLocationSource(source);
+    setAccuracy(gpsAccuracy);
+    setLocationError("");
+    try {
+      const results = await withTimeout(Location.reverseGeocodeAsync(position), 5500);
+      if (requestId !== locationRequest.current) return;
+      const place = results[0];
+      if (!place) return;
+      setCity(place.city || place.subregion || place.district || "");
+      setStateName(place.region || "");
+      setPincode(place.postalCode || "");
+      setMapAddress([
+        place.name, place.street, place.district || place.subregion,
+        place.city, place.region, place.postalCode,
+      ].filter(Boolean).filter((value, idx, values) => values.indexOf(value) === idx).join(", "));
+    } catch (error) {
+      if (requestId === locationRequest.current) {
+        console.log("Address reverse geocoding unavailable (manual fields enabled):", error);
+        // GPS coordinates remain valid even when city/state/pincode lookup fails.
+      }
     }
   };
 
-  const resetForm = () => {
-    setEditingAddress(null);
-    setTitle("");
-    setFullName("");
-    setPhone("");
-    setAddressLine("");
-    setLandmark("");
-    setSelectedCityId(null);
-    setSelectedNakaId(null);
-    setCity("");
-    setNakaName("");
-    setStateName("");
-    setPincode("");
-    setIsDefault(false);
+  const captureLocation = async () => {
+    if (isLocating) return;
+    setIsLocating(true);
+    setLocationError("");
+    try {
+      const permission = await withTimeout(Location.requestForegroundPermissionsAsync(), 8000);
+      if (permission.status !== "granted") {
+        setLocationError("Location permission nahi mili. Address manually save kar sakte hain; nearby worker matching ke liye coordinates chahiye.");
+        return;
+      }
+      let gpsPosition: Location.LocationObject | null = null;
+      try {
+        gpsPosition = await withTimeout(
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 12000,
+        );
+      } catch (gpsError) {
+        console.log("Fresh GPS unavailable, checking recent location:", gpsError);
+        try {
+          gpsPosition = await withTimeout(Location.getLastKnownPositionAsync({ maxAge: 120000 }), 5000);
+        } catch (lastKnownError) {
+          console.log("Last known location unavailable:", lastKnownError);
+        }
+      }
+      const point = gpsPosition && validCoordinate(gpsPosition.coords.latitude, gpsPosition.coords.longitude);
+      if (!point) {
+        setLocationError("GPS location nahi mili. Niche manual address dal sakte hain, ya latitude/longitude paste karke use karein.");
+        return;
+      }
+      await applyCoordinate(point, "CURRENT_LOCATION", gpsPosition?.coords.accuracy ?? null);
+    } catch (error) {
+      console.log("Location permission/service unavailable:", error);
+      setLocationError("Location service unavailable hai. Manual address entry use karein; app bina map ke chalegi.");
+    } finally {
+      setIsLocating(false);
+    }
   };
 
-  const openAddModal = () => {
+  const useManualCoordinates = async () => {
+    const point = validCoordinate(manualLatitude, manualLongitude);
+    if (!point) {
+      Alert.alert("Invalid Coordinates", "Latitude (-90 to 90) aur longitude (-180 to 180) dono sahi enter karein.");
+      return;
+    }
+    try {
+      setIsLocating(true);
+      await applyCoordinate(point, "MANUAL");
+    } catch (error) {
+      // applyCoordinate is best-effort, but keep a guard for unexpected errors.
+      console.log("Manual coordinates fallback:", error);
+      setCoordinate(point);
+      setLocationSource("MANUAL");
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
+  const openAddModal = async () => {
     resetForm();
-    setFullName(customer?.name || "");
-    setPhone(customer?.phone || "");
+    setIsDefault(addresses.length === 0);
     setShowModal(true);
+    if (bookingMode) {
+      try {
+        const stored = await AsyncStorage.getItem("newBookingDraft");
+        const draft: BookingDraft = stored ? JSON.parse(stored) : {};
+        const savedPoint = validCoordinate(draft.workLatitude, draft.workLongitude);
+        if (savedPoint) {
+          // Reuse the exact booking work-site point, not the customer's house GPS.
+          await applyCoordinate(savedPoint, "MANUAL");
+          return;
+        }
+      } catch (error) { console.log("Booking work-site prefilling:", error); }
+    }
+    await captureLocation();
   };
 
-  const openEditModal = (address: any) => {
-    const matchedCity = cities.find(
-      (c: any) =>
-        String(c.name || "")
-          .toLowerCase()
-          .trim() ===
-        String(address.city || "")
-          .toLowerCase()
-          .trim(),
-    );
-
-    const matchedNaka = nakas.find(
-      (n: any) =>
-        String(n.name || "")
-          .toLowerCase()
-          .trim() ===
-        String(address.nakaName || "")
-          .toLowerCase()
-          .trim(),
-    );
-
+  const openEditModal = async (address: any) => {
+    resetForm();
     setEditingAddress(address);
-    setTitle(address.title || "");
-    setFullName(address.fullName || "");
-    setPhone(address.phone || "");
-    setAddressLine(address.addressLine || "");
-    setLandmark(address.landmark || "");
-
-    setSelectedCityId(address.cityId || matchedCity?.id || null);
-    setSelectedNakaId(address.nakaId || matchedNaka?.id || null);
-
-    setCity(address.city || matchedCity?.name || "");
-    setNakaName(address.nakaName || matchedNaka?.name || "");
-    setStateName(address.state || "");
-    setPincode(address.pincode || "");
-    setIsDefault(!!address.isDefault);
+    setTitle(address.title || ""); setFullName(address.fullName || "");
+    setPhone(address.phone || ""); setAddressLine(address.addressLine || "");
+    setLandmark(address.landmark || ""); setCity(address.city || "");
+    setStateName(address.state || ""); setPincode(address.pincode || "");
+    setMapAddress(address.mapAddress || ""); setIsDefault(!!address.isDefault);
+    setLocationSource(address.locationSource || "MANUAL");
     setShowModal(true);
+    const storedPoint = validCoordinate(address.latitude, address.longitude);
+    if (storedPoint) {
+      setCoordinate(storedPoint);
+      setManualLatitude(storedPoint.latitude.toFixed(6));
+      setManualLongitude(storedPoint.longitude.toFixed(6));
+    }
+    else await captureLocation();
   };
 
-  const handleSelectCity = (item: any) => {
-    setSelectedCityId(item.id);
-    setCity(item.name || "");
-    setSelectedNakaId(null);
-    setNakaName("");
-    setShowCityModal(false);
-  };
+  const closeEditor = () => { setShowModal(false); resetForm(); };
 
-  const handleSelectNaka = (item: any) => {
-    setSelectedNakaId(item.id);
-    setNakaName(item.name || "");
-    setShowNakaModal(false);
+  const useAddressForBooking = async (address: any) => {
+    const point = validCoordinate(address.latitude, address.longitude);
+    if (!point) {
+      Alert.alert("GPS Location Needed", "Is address mein coordinates nahi hain. Edit karke GPS retry karein ya latitude/longitude manually enter karein.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Edit Address", onPress: () => void openEditModal(address) },
+      ]);
+      return;
+    }
+    try {
+      const stored = await AsyncStorage.getItem("newBookingDraft");
+      const draft: BookingDraft = stored ? JSON.parse(stored) : {};
+      const previous = validCoordinate(draft.workLatitude, draft.workLongitude);
+      // If work site changed materially, update coordinates and redo nearby matching.
+      const requiresRematch = !previous || distanceMeters(previous, point) > 250;
+      const updated: BookingDraft = {
+        ...draft,
+        addressId: Number(address.id),
+        workLatitude: point.latitude,
+        workLongitude: point.longitude,
+        workAddress: [address.addressLine, address.mapAddress].filter(Boolean).join(" · ") || draft.workAddress,
+      };
+      if (requiresRematch) {
+        updated.selectedWorkerIds = [];
+        updated.selectedWorkers = [];
+        updated.selectedNakas = [];
+        updated.nakaIds = [];
+      }
+      await AsyncStorage.setItem("newBookingDraft", JSON.stringify(updated));
+      if (requiresRematch) {
+        Alert.alert("Work Location Updated", "Address location badli hai. Nearby workers dobara check karna zaroori hai.", [
+          { text: "Continue", onPress: () => router.replace("/user/book-worker-step2") },
+        ]);
+      } else router.back();
+    } catch (error) {
+      console.log("Booking address selection error:", error);
+      Alert.alert("Error", "Booking address select nahi ho paya.");
+    }
   };
 
   const handleSaveAddress = async () => {
-    if (!addressLine.trim()) {
-      Alert.alert("Required", "Please enter full address.");
+    if (isSaving) return;
+    if (addressLine.trim().length < 5) { Alert.alert("Address Required", "Plot, flat, road aur landmark ke saath complete address likhein."); return; }
+    if (pincode.trim() && !/^\d{6}$/.test(pincode.trim())) { Alert.alert("Invalid Pincode", "Pincode 6 digits ka hona chahiye."); return; }
+    // Manual coordinates also work when the user taps Save directly without
+    // tapping "Use Entered Coordinates" first.
+    const manualEntered = manualLatitude.trim() !== "" || manualLongitude.trim() !== "";
+    const typedCoordinate = manualEntered ? validCoordinate(manualLatitude, manualLongitude) : null;
+    if (manualEntered && !typedCoordinate) {
+      Alert.alert("Invalid Coordinates", "Valid latitude aur longitude dono enter karein, ya dono fields blank rakhein.");
       return;
     }
-
-    if (!selectedCityId || !city.trim()) {
-      Alert.alert("Required", "Please select city.");
-      return;
-    }
-
-    if (!selectedNakaId || !nakaName.trim()) {
-      Alert.alert("Required", "Please select nearest naka.");
-      return;
-    }
-
+    const savedPoint = typedCoordinate || coordinate;
+    const wasEditedManually = !!typedCoordinate && (!coordinate ||
+      typedCoordinate.latitude !== coordinate.latitude || typedCoordinate.longitude !== coordinate.longitude);
+    if (!customer?.id) { Alert.alert("Session Error", "Please login again."); return; }
     try {
+      setIsSaving(true);
       const payload = {
-        customerId: customer.id,
-        title,
-        fullName,
-        phone,
-        addressLine,
-        landmark,
-
-        // Backend me abhi city string save hoga.
-        // Next backend update me cityId/nakaId/nakaName bhi save karenge.
-        cityId: selectedCityId,
-        city,
-        nakaId: selectedNakaId,
-        nakaName,
-
-        state: stateName,
-        pincode,
-        isDefault,
+        customerId: customer.id, title: title.trim(), fullName: fullName.trim(),
+        phone: phone.trim(), addressLine: addressLine.trim(),
+        addressDetail: addressLine.trim(), mapAddress: mapAddress.trim(),
+        landmark: landmark.trim(), city: city.trim(), state: stateName.trim(),
+        pincode: pincode.trim(), latitude: savedPoint?.latitude ?? null,
+        longitude: savedPoint?.longitude ?? null,
+        locationSource: savedPoint && !wasEditedManually ? locationSource : "MANUAL",
+        // No manual Naka needed. Remove stale legacy Naka from edited addresses.
+        cityId: null, nakaId: null, nakaName: null, isDefault,
       };
-
-      let response;
-
-      if (editingAddress) {
-        response = await axios.put(
-          `${API_URL}/user/customer-addresses/${editingAddress.id}`,
-          payload,
-        );
-      } else {
-        response = await axios.post(
-          `${API_URL}/user/customer-addresses`,
-          payload,
-        );
-      }
-
-      if (response.data.success) {
-        setShowModal(false);
-        resetForm();
-        await fetchAddresses(customer.id);
-      } else {
-        Alert.alert("Failed", response.data.message || "Address save failed.");
+      const response = editingAddress
+        ? await axios.put(`${API_URL}/user/customer-addresses/${editingAddress.id}`, payload)
+        : await axios.post(`${API_URL}/user/customer-addresses`, payload);
+      if (!response.data.success) throw new Error(response.data.message || "Address save failed.");
+      const savedAddress = response.data.address;
+      closeEditor();
+      await fetchAddresses(customer.id);
+      if (bookingMode && savedAddress) {
+        if (validCoordinate(savedAddress.latitude, savedAddress.longitude)) {
+          await useAddressForBooking(savedAddress);
+        } else {
+          Alert.alert("Address Saved", "Address save ho gaya. Booking ke nearby workers match karne ke liye GPS retry karein ya latitude/longitude manually enter karein.");
+        }
       }
     } catch (error: any) {
       console.log("Save address error:", error?.response?.data || error);
-      Alert.alert(
-        "Server Error",
-        error?.response?.data?.message || "Address save nahi ho paya.",
-      );
-    }
+      Alert.alert("Address Save Failed", error?.response?.data?.message || error.message || "Please retry.");
+    } finally { setIsSaving(false); }
   };
 
   const handleDeleteAddress = (addressId: number) => {
-    Alert.alert(
-      "Delete Address",
-      "Are you sure you want to delete this address?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const response = await axios.delete(
-                `${API_URL}/user/customer-addresses/${addressId}`,
-              );
-
-              if (response.data.success) {
-                await fetchAddresses(customer.id);
-              }
-            } catch (error: any) {
-              console.log(
-                "Delete address error:",
-                error?.response?.data || error,
-              );
-              Alert.alert("Error", "Address delete nahi ho paya.");
-            }
-          },
-        },
-      ],
-    );
+    Alert.alert("Delete Address", "Is saved address ko delete karna hai?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          await axios.delete(`${API_URL}/user/customer-addresses/${addressId}`);
+          await fetchAddresses(customer.id);
+        } catch (error: any) {
+          Alert.alert("Error", error?.response?.data?.message || "Address delete nahi ho paya.");
+        }
+      } },
+    ]);
   };
 
   const handleSetDefault = async (address: any) => {
     try {
-      const response = await axios.put(
-        `${API_URL}/user/customer-addresses/${address.id}`,
-        {
-          ...address,
-          customerId: customer.id,
-          isDefault: true,
-        },
-      );
-
-      if (response.data.success) {
-        await fetchAddresses(customer.id);
-      }
+      const response = await axios.put(`${API_URL}/user/customer-addresses/${address.id}`, {
+        customerId: customer.id, isDefault: true,
+      });
+      if (response.data.success) await fetchAddresses(customer.id);
     } catch (error: any) {
-      console.log("Set default error:", error?.response?.data || error);
-      Alert.alert("Error", "Default address update nahi ho paya.");
+      Alert.alert("Error", error?.response?.data?.message || "Default address update failed.");
     }
   };
 
-  const filteredNakas = nakas.filter(
-    (naka: any) => Number(naka.cityId) === Number(selectedCityId),
-  );
-
-  const selectedCityObj = cities.find(
-    (item: any) => Number(item.id) === Number(selectedCityId),
-  );
-
-  const selectedNakaObj = nakas.find(
-    (item: any) => Number(item.id) === Number(selectedNakaId),
-  );
-
-  if (isLoading) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#10B981" />
-      </View>
-    );
-  }
-
+  if (isLoading) return <View style={styles.loader}><ActivityIndicator size="large" color="#059669" /></View>;
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <ArrowLeft color="#111827" size={22} />
-        </TouchableOpacity>
-
-        <View>
-          <Text style={styles.headerTitle}>Saved Addresses</Text>
-          <Text style={styles.headerSub}>City aur naka wise addresses</Text>
-        </View>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}><ArrowLeft color="#111827" size={22} /></TouchableOpacity>
+        <View style={{ flex: 1 }}><Text style={styles.headerTitle}>Saved Addresses</Text>
+          <Text style={styles.muted}>{bookingMode ? "Select address for this booking" : "GPS based work-site addresses"}</Text></View>
       </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
-          <Plus color="#fff" size={22} />
-          <Text style={styles.addBtnText}>Add New Address</Text>
+      <ScrollView contentContainerStyle={styles.content}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => void openAddModal()}>
+          <Plus color="#fff" size={21} /><Text style={styles.addBtnText}>Add Work Address</Text>
         </TouchableOpacity>
-
-        {addresses.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <MapPin color="#9CA3AF" size={44} />
-            <Text style={styles.emptyTitle}>No addresses added</Text>
-            <Text style={styles.emptySub}>
-              Add address once, then use it quickly while booking.
-            </Text>
-          </View>
-        ) : (
-          addresses.map((item) => (
-            <View key={item.id} style={styles.addressCard}>
-              <View style={styles.addressTop}>
-                <View style={styles.addressIcon}>
-                  <MapPin color="#10B981" size={22} />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <View style={styles.titleRow}>
-                    <Text style={styles.addressTitle}>
-                      {item.title || "Address"}
-                    </Text>
-
-                    {item.isDefault ? (
-                      <View style={styles.defaultBadge}>
-                        <CheckCircle2 color="#047857" size={13} />
-                        <Text style={styles.defaultBadgeText}>Default</Text>
-                      </View>
-                    ) : null}
-                  </View>
-
-                  <Text style={styles.addressName}>
-                    {item.fullName || customer?.name || "User"}
-                  </Text>
-
-                  <Text style={styles.addressText}>{item.addressLine}</Text>
-
-                  {item.landmark ? (
-                    <Text style={styles.addressSub}>
-                      Landmark: {item.landmark}
-                    </Text>
-                  ) : null}
-
-                  <Text style={styles.addressSub}>
-                    City: {item.city || "-"}
-                  </Text>
-
-                  {item.nakaName ? (
-                    <Text style={styles.addressSub}>Naka: {item.nakaName}</Text>
-                  ) : null}
-
-                  <Text style={styles.addressSub}>
-                    {[item.state, item.pincode].filter(Boolean).join(", ")}
-                  </Text>
-
-                  {item.phone ? (
-                    <Text style={styles.addressPhone}>{item.phone}</Text>
-                  ) : null}
-                </View>
-              </View>
-
-              <View style={styles.cardActions}>
-                {!item.isDefault ? (
-                  <TouchableOpacity
-                    style={styles.defaultBtn}
-                    onPress={() => handleSetDefault(item)}
-                  >
-                    <Text style={styles.defaultBtnText}>Set Default</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={{ flex: 1 }} />
-                )}
-
-                <TouchableOpacity
-                  style={styles.iconActionBtn}
-                  onPress={() => openEditModal(item)}
-                >
-                  <Edit3 color="#111827" size={17} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => handleDeleteAddress(item.id)}
-                >
-                  <Trash2 color="#EF4444" size={17} />
-                </TouchableOpacity>
-              </View>
+        {!addresses.length && <View style={styles.card}><MapPin size={30} color="#059669" />
+          <Text style={styles.cardTitle}>No address added</Text>
+          <Text style={styles.muted}>GPS use karein, ya address manually enter karein.</Text></View>}
+        {addresses.map(address => (
+          <View key={address.id} style={styles.card}>
+            <View style={styles.cardHeading}>
+              <Text style={styles.cardTitle}>{address.title || "Work Address"}</Text>
+              {address.isDefault && <Text style={styles.badge}>Default</Text>}
             </View>
-          ))
-        )}
-
-        <View style={{ height: 40 }} />
+            <Text style={styles.addressText}>{address.addressLine}</Text>
+            {!!address.mapAddress && <Text style={styles.muted}>{address.mapAddress}</Text>}
+            <Text style={styles.muted}>{[address.city,address.state,address.pincode].filter(Boolean).join(", ")}</Text>
+            <Text style={styles.muted}>{validCoordinate(address.latitude,address.longitude) ? "✓ Work-site coordinates saved" : "Coordinates not set (manual address only)"}</Text>
+            <View style={styles.actionRow}>
+              {bookingMode && <TouchableOpacity style={styles.useBtn} onPress={() => void useAddressForBooking(address)}>
+                <Text style={styles.useText}>Use for Booking</Text></TouchableOpacity>}
+              {!address.isDefault && <TouchableOpacity style={styles.actionBtn} onPress={() => void handleSetDefault(address)}>
+                <Text style={styles.actionText}>Set Default</Text></TouchableOpacity>}
+              <TouchableOpacity style={styles.iconBtn} onPress={() => void openEditModal(address)}><Edit3 size={19} color="#111827" /></TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn} onPress={() => handleDeleteAddress(address.id)}><Trash2 size={19} color="#DC2626" /></TouchableOpacity>
+            </View>
+          </View>
+        ))}
       </ScrollView>
 
-      {/* ADD / EDIT ADDRESS MODAL */}
-      <Modal
-        visible={showModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>
-                    {editingAddress ? "Edit Address" : "Add New Address"}
-                  </Text>
-                  <Text style={styles.modalSub}>
-                    Booking me city match hone par ye address selectable hoga.
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.closeBtn}
-                  onPress={() => {
-                    setShowModal(false);
-                    resetForm();
-                  }}
-                >
-                  <X color="#111827" size={22} />
-                </TouchableOpacity>
-              </View>
-
-              <TextInput
-                style={styles.input}
-                placeholder="Title eg. Home, Office, Site"
-                placeholderTextColor="#9CA3AF"
-                value={title}
-                onChangeText={setTitle}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Full Name"
-                placeholderTextColor="#9CA3AF"
-                value={fullName}
-                onChangeText={setFullName}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Phone"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
-              />
-
-              <Text style={styles.fieldLabel}>Select City</Text>
-              <TouchableOpacity
-                style={styles.dropdownBtn}
-                onPress={() => setShowCityModal(true)}
-              >
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    !selectedCityId && { color: "#9CA3AF" },
-                  ]}
-                >
-                  {selectedCityObj?.name || city || "Choose city"}
-                </Text>
-                <ChevronDown color="#6B7280" size={20} />
-              </TouchableOpacity>
-
-              <Text style={styles.fieldLabel}>Select Nearest Naka</Text>
-              <TouchableOpacity
-                style={[
-                  styles.dropdownBtn,
-                  !selectedCityId && { opacity: 0.6 },
-                ]}
-                onPress={() => {
-                  if (!selectedCityId) {
-                    Alert.alert("Select City", "Please select city first.");
-                    return;
-                  }
-
-                  setShowNakaModal(true);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    !selectedNakaId && { color: "#9CA3AF" },
-                  ]}
-                >
-                  {selectedNakaObj?.name || nakaName || "Choose naka"}
-                </Text>
-                <ChevronDown color="#6B7280" size={20} />
-              </TouchableOpacity>
-
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Full Address"
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={4}
-                value={addressLine}
-                onChangeText={setAddressLine}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Landmark"
-                placeholderTextColor="#9CA3AF"
-                value={landmark}
-                onChangeText={setLandmark}
-              />
-
-              <View style={styles.rowInputs}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  placeholder="Pincode"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="number-pad"
-                  value={pincode}
-                  onChangeText={setPincode}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={styles.defaultCheck}
-                onPress={() => setIsDefault(!isDefault)}
-              >
-                <View
-                  style={[
-                    styles.checkBox,
-                    isDefault && styles.checkBoxSelected,
-                  ]}
-                >
-                  {isDefault ? <Text style={styles.checkMark}>✓</Text> : null}
-                </View>
-
-                <Text style={styles.defaultCheckText}>
-                  Make this default address
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => {
-                    setShowModal(false);
-                    resetForm();
-                  }}
-                >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.saveBtn}
-                  onPress={handleSaveAddress}
-                >
-                  <Text style={styles.saveBtnText}>
-                    {editingAddress ? "Update" : "Save"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+      <Modal visible={showModal} transparent animationType="slide" onRequestClose={closeEditor}>
+        <View style={styles.overlay}><View style={styles.modalCard}>
+          <View style={styles.editorHeader}>
+            <View style={{flex: 1}}><Text style={styles.modalTitle}>{editingAddress ? "Edit Work Address" : "New Work Address"}</Text>
+              <Text style={styles.muted}>GPS optional — manual address bhi save kar sakte hain</Text></View>
+            <TouchableOpacity onPress={closeEditor}><X size={24} color="#111827" /></TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-
-      {/* CITY MODAL */}
-      <Modal visible={showCityModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.selectModalCard}>
-            <View style={styles.selectHeader}>
-              <Text style={styles.selectTitle}>Select City</Text>
-              <TouchableOpacity onPress={() => setShowCityModal(false)}>
-                <X color="#111827" size={24} />
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={styles.locationBox}>
+              <View style={styles.cardHeading}>
+                <Text style={styles.cardTitle}>Work Site Location (optional GPS)</Text>
+                <TouchableOpacity style={styles.refreshBtn} disabled={isLocating} onPress={() => void captureLocation()}>
+                  {isLocating ? <ActivityIndicator size="small" color="#065F46" /> : <LocateFixed size={16} color="#065F46" />}
+                  <Text style={styles.refreshText}>Refresh GPS</Text>
+                </TouchableOpacity>
+              </View>
+              {coordinate ? <>
+                <Text style={styles.coordinateText}>Latitude: {coordinate.latitude.toFixed(6)}  |  Longitude: {coordinate.longitude.toFixed(6)}</Text>
+                {accuracy != null && <Text style={styles.muted}>GPS accuracy approximately {Math.round(accuracy)} meters</Text>}
+                {!!mapAddress && <Text style={styles.addressText}>{mapAddress}</Text>}
+                <View style={styles.successRow}><CheckCircle2 size={16} color="#047857" />
+                  <Text style={styles.successText}>Work-site coordinates captured</Text></View>
+              </> : <TouchableOpacity style={styles.locationPrompt} onPress={() => void captureLocation()}>
+                {isLocating ? <ActivityIndicator color="#047857" /> : <LocateFixed size={26} color="#047857" />}
+                <Text style={styles.addressText}>Tap to fetch work-site location</Text>
+              </TouchableOpacity>}
+              {!!locationError && <Text style={styles.errorText}>{locationError}</Text>}
+              {!coordinate && <Text style={styles.muted}>GPS optional hai: address manual save ho jayega. Nearby workers dhoondhne ke liye valid coordinates zaroori hain.</Text>}
+              <Text style={styles.label}>Manual Latitude / Longitude (optional)</Text>
+              <View style={styles.coordinateInputs}>
+                <TextInput style={[styles.input, styles.coordinateInput]} keyboardType="numbers-and-punctuation"
+                  placeholder="Latitude" placeholderTextColor="#9CA3AF" value={manualLatitude} onChangeText={setManualLatitude} />
+                <TextInput style={[styles.input, styles.coordinateInput]} keyboardType="numbers-and-punctuation"
+                  placeholder="Longitude" placeholderTextColor="#9CA3AF" value={manualLongitude} onChangeText={setManualLongitude} />
+              </View>
+              <TouchableOpacity style={styles.manualBtn} disabled={isLocating} onPress={() => void useManualCoordinates()}>
+                <Text style={styles.manualBtnText}>Use Entered Coordinates</Text>
               </TouchableOpacity>
             </View>
-
-            <FlatList
-              data={cities}
-              keyExtractor={(item: any) => String(item.id)}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.selectItem,
-                    selectedCityId === item.id && styles.selectItemActive,
-                  ]}
-                  onPress={() => handleSelectCity(item)}
-                >
-                  <Text
-                    style={[
-                      styles.selectItemText,
-                      selectedCityId === item.id && styles.selectItemTextActive,
-                    ]}
-                  >
-                    {item.name}
-                  </Text>
-
-                  {selectedCityId === item.id ? (
-                    <CheckCircle2 color="#10B981" size={20} />
-                  ) : null}
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* NAKA MODAL */}
-      <Modal visible={showNakaModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.selectModalCard}>
-            <View style={styles.selectHeader}>
-              <Text style={styles.selectTitle}>Select Naka</Text>
-              <TouchableOpacity onPress={() => setShowNakaModal(false)}>
-                <X color="#111827" size={24} />
-              </TouchableOpacity>
-            </View>
-
-            {filteredNakas.length === 0 ? (
-              <View style={styles.noNakaBox}>
-                <Text style={styles.noNakaTitle}>No nakas found</Text>
-                <Text style={styles.noNakaSub}>
-                  Selected city ke liye naka available nahi hai.
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={filteredNakas}
-                keyExtractor={(item: any) => String(item.id)}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.selectItem,
-                      selectedNakaId === item.id && styles.selectItemActive,
-                    ]}
-                    onPress={() => handleSelectNaka(item)}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <MapPin
-                        color={
-                          selectedNakaId === item.id ? "#10B981" : "#6B7280"
-                        }
-                        size={20}
-                      />
-                      <Text
-                        style={[
-                          styles.selectItemText,
-                          selectedNakaId === item.id &&
-                            styles.selectItemTextActive,
-                        ]}
-                      >
-                        {item.name}
-                      </Text>
-                    </View>
-
-                    {selectedNakaId === item.id ? (
-                      <CheckCircle2 color="#10B981" size={20} />
-                    ) : null}
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-          </View>
-        </View>
+            <Text style={styles.label}>Address Name</Text>
+            <TextInput style={styles.input} placeholder="Home, Shop, Site" placeholderTextColor="#9CA3AF" value={title} onChangeText={setTitle} />
+            <Text style={styles.label}>Full Address / Site Description *</Text>
+            <TextInput style={[styles.input, styles.textArea]} multiline placeholder="Plot, room, building, road, area aur nearby landmark" placeholderTextColor="#9CA3AF" value={addressLine} onChangeText={setAddressLine} />
+            <Text style={styles.label}>Landmark (optional)</Text>
+            <TextInput style={styles.input} placeholder="Near landmark" placeholderTextColor="#9CA3AF" value={landmark} onChangeText={setLandmark} />
+            <Text style={styles.label}>City / Area (GPS se auto)</Text>
+            <TextInput style={styles.input} placeholder="City" placeholderTextColor="#9CA3AF" value={city} onChangeText={setCity} />
+            <Text style={styles.label}>State (GPS se auto)</Text>
+            <TextInput style={styles.input} placeholder="State" placeholderTextColor="#9CA3AF" value={stateName} onChangeText={setStateName} />
+            <Text style={styles.label}>Pincode (GPS se auto)</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" maxLength={6} placeholder="6 digit pincode" placeholderTextColor="#9CA3AF" value={pincode} onChangeText={setPincode} />
+            <Text style={styles.label}>Contact Name</Text>
+            <TextInput style={styles.input} placeholder="Name" placeholderTextColor="#9CA3AF" value={fullName} onChangeText={setFullName} />
+            <Text style={styles.label}>Contact Phone</Text>
+            <TextInput style={styles.input} keyboardType="phone-pad" placeholder="Phone number" placeholderTextColor="#9CA3AF" value={phone} onChangeText={setPhone} />
+            <TouchableOpacity style={styles.checkRow} onPress={() => setIsDefault(!isDefault)}>
+              <CheckCircle2 color={isDefault ? "#059669" : "#9CA3AF"} size={22} />
+              <Text style={styles.addressText}>Make default work address</Text>
+            </TouchableOpacity>
+            <TouchableOpacity disabled={isSaving || isLocating} style={[styles.addBtn, (isSaving || isLocating) && { opacity: 0.5 }]} onPress={() => void handleSaveAddress()}>
+              {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.addBtnText}>{editingAddress ? "Update Address" : "Save Address"}</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </View></View>
       </Modal>
     </SafeAreaView>
   );
@@ -712,333 +466,50 @@ export default function ManageAddresses() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
-  loader: { flex: 1, justifyContent: "center", alignItems: "center" },
-
-  header: {
-    backgroundColor: "#FFFFFF",
-    paddingTop: 50,
-    paddingHorizontal: 18,
-    paddingBottom: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: { color: "#111827", fontSize: 22, fontWeight: "900" },
-  headerSub: {
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-
-  content: { padding: 18 },
-
-  addBtn: {
-    backgroundColor: "#10B981",
-    paddingVertical: 16,
-    borderRadius: 18,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 18,
-  },
-  addBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
-
-  emptyBox: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 30,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#111827",
-    marginTop: 12,
-  },
-  emptySub: {
-    color: "#6B7280",
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 5,
-    lineHeight: 19,
-  },
-
-  addressCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  addressTop: { flexDirection: "row", alignItems: "flex-start" },
-  addressIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 16,
-    backgroundColor: "#ECFDF5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 13,
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 3,
-  },
-  addressTitle: { fontSize: 16, fontWeight: "900", color: "#111827" },
-  defaultBadge: {
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  defaultBadgeText: { fontSize: 10, color: "#047857", fontWeight: "900" },
-  addressName: {
-    fontSize: 13,
-    color: "#374151",
-    fontWeight: "900",
-    marginTop: 2,
-  },
-  addressText: {
-    fontSize: 13,
-    color: "#4B5563",
-    fontWeight: "600",
-    marginTop: 4,
-    lineHeight: 19,
-  },
-  addressSub: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginTop: 3,
-  },
-  addressPhone: {
-    fontSize: 13,
-    color: "#059669",
-    fontWeight: "900",
-    marginTop: 5,
-  },
-
-  cardActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  defaultBtn: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-    paddingVertical: 11,
-    borderRadius: 13,
-    alignItems: "center",
-  },
-  defaultBtnText: { fontSize: 12, color: "#374151", fontWeight: "900" },
-  iconActionBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  deleteBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: "#FEF2F2",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: "#FFFFFF",
-    maxHeight: "94%",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 22,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  closeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalTitle: { fontSize: 22, fontWeight: "900", color: "#111827" },
-  modalSub: {
-    color: "#6B7280",
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 4,
-    maxWidth: 270,
-  },
-
-  fieldLabel: {
-    fontSize: 12,
-    color: "#374151",
-    fontWeight: "900",
-    marginBottom: 6,
-    marginTop: 2,
-  },
-  input: {
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  textArea: { minHeight: 95, textAlignVertical: "top" },
-  rowInputs: { flexDirection: "row", gap: 12 },
-
-  dropdownBtn: {
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dropdownText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  defaultCheck: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 2,
-    marginBottom: 16,
-  },
-  checkBox: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#D1D5DB",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkBoxSelected: { backgroundColor: "#10B981", borderColor: "#10B981" },
-  checkMark: { color: "#FFFFFF", fontWeight: "900" },
-  defaultCheckText: { fontSize: 14, color: "#374151", fontWeight: "800" },
-
-  modalActions: { flexDirection: "row", gap: 12, marginTop: 4 },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-    paddingVertical: 15,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  cancelBtnText: { color: "#374151", fontWeight: "900" },
-  saveBtn: {
-    flex: 1.4,
-    backgroundColor: "#10B981",
-    paddingVertical: 15,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  saveBtnText: { color: "#FFFFFF", fontWeight: "900" },
-
-  selectModalCard: {
-    backgroundColor: "#FFFFFF",
-    maxHeight: "75%",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 20,
-  },
-  selectHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    marginBottom: 10,
-  },
-  selectTitle: { fontSize: 20, fontWeight: "900", color: "#111827" },
-  selectItem: {
-    paddingVertical: 15,
-    paddingHorizontal: 14,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  selectItemActive: {
-    backgroundColor: "#ECFDF5",
-    borderColor: "#10B981",
-  },
-  selectItemText: { color: "#374151", fontWeight: "900", fontSize: 14 },
-  selectItemTextActive: { color: "#047857" },
-
-  noNakaBox: {
-    padding: 30,
-    alignItems: "center",
-  },
-  noNakaTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#111827",
-  },
-  noNakaSub: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "600",
-    marginTop: 5,
-    textAlign: "center",
-  },
+  loader: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18,
+    paddingTop: 48, paddingBottom: 16, backgroundColor: "#FFFFFF" },
+  backBtn: { padding: 11, borderRadius: 13, backgroundColor: "#F3F4F6" },
+  headerTitle: { fontSize: 22, color: "#111827", fontWeight: "900" },
+  muted: { color: "#6B7280", fontSize: 12, lineHeight: 18, marginTop: 4 },
+  content: { padding: 18, paddingBottom: 45 },
+  addBtn: { paddingVertical: 16, borderRadius: 14, flexDirection: "row", justifyContent: "center",
+    alignItems: "center", gap: 8, backgroundColor: "#059669", marginBottom: 18 },
+  addBtnText: { fontSize: 15, color: "#FFFFFF", fontWeight: "800" },
+  card: { borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E5E7EB",
+    padding: 17, marginBottom: 12, gap: 6 },
+  cardHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  cardTitle: { fontSize: 15, color: "#111827", fontWeight: "800", flexShrink: 1 },
+  badge: { color: "#047857", fontSize: 11, fontWeight: "700", backgroundColor: "#D1FAE5", padding: 5 },
+  addressText: { color: "#374151", fontSize: 13, fontWeight: "600", lineHeight: 19 },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 11, flexWrap: "wrap" },
+  useBtn: { backgroundColor: "#D1FAE5", borderRadius: 9, padding: 11 },
+  useText: { color: "#065F46", fontWeight: "800", fontSize: 12 },
+  actionBtn: { borderRadius: 9, backgroundColor: "#F3F4F6", padding: 11 },
+  actionText: { color: "#374151", fontWeight: "700", fontSize: 12 },
+  iconBtn: { backgroundColor: "#F3F4F6", borderRadius: 9, padding: 11 },
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
+  modalCard: { backgroundColor: "#FFFFFF", borderTopRightRadius: 24, borderTopLeftRadius: 24,
+    padding: 18, maxHeight: "95%" },
+  editorHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  modalTitle: { fontSize: 21, fontWeight: "900", color: "#111827" },
+  locationBox: { borderWidth: 1, borderColor: "#BFDBFE", backgroundColor: "#EFF6FF",
+    padding: 13, borderRadius: 16, gap: 9, marginBottom: 15 },
+  refreshBtn: { flexDirection: "row", alignItems: "center", gap: 5, padding: 8,
+    borderWidth: 1, borderColor: "#A7F3D0", borderRadius: 10, backgroundColor: "#FFFFFF" },
+  refreshText: { fontSize: 11, color: "#065F46", fontWeight: "800" },
+  coordinateText: { fontSize: 12, color: "#1E40AF", fontWeight: "700" },
+  coordinateInputs: { flexDirection: "row", gap: 8 },
+  coordinateInput: { flex: 1, minWidth: 0, marginBottom: 0 },
+  manualBtn: { padding: 12, borderRadius: 10, backgroundColor: "#DBEAFE", alignItems: "center" },
+  manualBtnText: { color: "#1E40AF", fontWeight: "800", fontSize: 12 },
+  successRow: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#D1FAE5", padding: 10, borderRadius: 10 },
+  successText: { color: "#047857", fontWeight: "700", fontSize: 12 },
+  locationPrompt: { minHeight: 150, alignItems: "center", justifyContent: "center", gap: 10 },
+  errorText: { color: "#B91C1C", fontSize: 12 },
+  label: { color: "#374151", fontWeight: "800", fontSize: 12, marginBottom: 6 },
+  input: { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, paddingHorizontal: 13,
+    paddingVertical: 12, marginBottom: 14, color: "#111827", backgroundColor: "#F9FAFB", fontSize: 14 },
+  textArea: { minHeight: 100, textAlignVertical: "top" },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 18 },
 });

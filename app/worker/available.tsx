@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { router, Stack } from "expo-router";
-import { Clock3, Power, UsersRound } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import { router, Stack, useFocusEffect } from "expo-router";
+import { ArrowLeft, Clock3, Power, UsersRound } from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Alert,
   SafeAreaView,
   StyleSheet,
@@ -24,6 +25,13 @@ export default function WorkerAvailable() {
   const [isLoadingPool, setIsLoadingPool] = useState(true);
   const [workerSession, setWorkerSession] = useState<any>(null);
   const [poolInfo, setPoolInfo] = useState<any>(null);
+  useFocusEffect(useCallback(() => {
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      router.replace("/worker/dashboard");
+      return true;
+    });
+    return () => listener.remove();
+  }, []));
 
   const autoOfflineDoneRef = useRef(false);
   const dutyCheckInProgressRef = useRef(false);
@@ -53,6 +61,23 @@ export default function WorkerAvailable() {
       }
     }, 1000);
 
+    const poolRefresh = setInterval(async () => {
+      try {
+        const session = await AsyncStorage.getItem("workerSession");
+        if (session && !dutyOpenedRef.current) {
+          const id = Number(JSON.parse(session).id);
+          const response = await axios.get(`${API_URL}/worker/pool-status/${id}`);
+          if (response.data?.success && response.data?.isAvailable) {
+            setPoolInfo(response.data);
+            remainingSecondsRef.current = Math.max(0, Number(response.data.remainingSeconds || 0));
+            setElapsedSeconds(Math.max(0, Number(response.data.elapsedSeconds || 0)));
+          }
+          // A booking can make a worker unavailable: duty poller handles that.
+          // Never navigate away or show 'Pool Ended' from a background refresh.
+        }
+      } catch (error) { console.log("Pool timer refresh error:", error); }
+    }, 15000);
+
     const dutyPoller = setInterval(async () => {
       try {
         if (dutyOpenedRef.current) return;
@@ -69,6 +94,7 @@ export default function WorkerAvailable() {
 
     return () => {
       clearInterval(timer);
+      clearInterval(poolRefresh);
       clearInterval(dutyPoller);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,9 +275,14 @@ export default function WorkerAvailable() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
 
       <View style={styles.topNav}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Worker Dashboard"
+          onPress={() => router.replace("/worker/dashboard")}
+          style={{ padding: 8, marginLeft: -8 }}>
+          <ArrowLeft color="#087C49" size={24} strokeWidth={2.5} />
+        </TouchableOpacity>
         <View>
           <Text style={styles.navEyebrow}>WORKER</Text>
           <Text style={styles.navTitle}>Available</Text>
@@ -293,7 +324,7 @@ export default function WorkerAvailable() {
             </View>
             <View style={styles.timerHeaderText}>
               <Text style={styles.timerLabelTop}>POOL TIME</Text>
-              <Text style={styles.timerHint}>Time since you became available</Text>
+              <Text style={styles.timerHint}>{poolInfo?.poolTimerMode === "FIRST_POOL" ? "Since first pool started" : poolInfo?.poolTimerMode === "CURRENT_POOL" ? "Since current scheduled pool started" : "Time since you became available"}</Text>
             </View>
           </View>
 
@@ -320,9 +351,9 @@ export default function WorkerAvailable() {
               <Clock3 color="#087C49" size={18} strokeWidth={2.5} />
             </View>
             <View style={styles.startedTextWrap}>
-              <Text style={styles.startedLabel}>Pool started</Text>
+              <Text style={styles.startedLabel}>Timer starts from</Text>
               <Text style={styles.startedValue}>
-                {formatDisplayTime(poolInfo?.availabilityStart)}
+                {formatDisplayTime(poolInfo?.timerBaseTime || poolInfo?.availabilityStart)}
               </Text>
             </View>
           </View>

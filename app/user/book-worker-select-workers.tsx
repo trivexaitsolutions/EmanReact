@@ -66,6 +66,7 @@ type BookingDraft = {
   skillName?: string;
   minRating?: number;
   workerCount?: number;
+  duration?: "FULL_DAY" | "2" | "3" | "4";
   nakaIds?: number[];
   selectedNakas?: any[];
   assignmentMode?: "AUTO" | "CUSTOMER_SELECT";
@@ -158,6 +159,7 @@ export default function BookWorkerSelectWorkers() {
           workLongitude,
           skillId: Number(parsedDraft.skillId),
           minRating: Number(parsedDraft.minRating || 0),
+          duration: parsedDraft.duration || "FULL_DAY",
         },
       );
 
@@ -253,6 +255,7 @@ export default function BookWorkerSelectWorkers() {
   };
 
   const requiredCount = Number(draft.workerCount || 1);
+  const durationText = draft.duration && draft.duration !== "FULL_DAY" ? `${draft.duration} Hours` : "Full Day";
 
   const toggleWorker = (workerId: number) => {
     const parsedWorkerId = Number(workerId);
@@ -356,7 +359,7 @@ export default function BookWorkerSelectWorkers() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Select Workers</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {draft.skillName || "Worker"}
+            {draft.skillName || "Worker"} • {durationText}
           </Text>
         </View>
 
@@ -463,9 +466,7 @@ export default function BookWorkerSelectWorkers() {
 
                   <View style={styles.durationBadge}>
                     <Text style={styles.durationBadgeText}>
-                      {worker.availabilityType === "SHORT_PERIOD"
-                        ? `${Number(worker.availabilityHours || 0)} Hours Work`
-                        : "Full Day Work"}
+                      {durationText} Work
                     </Text>
                   </View>
 
@@ -474,13 +475,8 @@ export default function BookWorkerSelectWorkers() {
                       <Text style={styles.workerPrice}>
                         ₹{Number(worker.effectiveRate).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                       </Text>
-                      {Number(worker.baseRate || 0) > Number(worker.effectiveRate) ? (
-                        <Text style={styles.workerBasePrice}>
-                          ₹{Number(worker.baseRate).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                        </Text>
-                      ) : null}
                       <Text style={styles.workerPoolLabel}>
-                        Pool {Number(worker.poolNumber || 1)} rate
+                        {durationText} price · Pool {Number(worker.poolNumber || 1)}
                       </Text>
                     </View>
                   ) : (

@@ -55,12 +55,20 @@ export default function CustomerLoginScreen() {
 
       if (isRegisterMode) {
         // Naye user ke liye Name, Phone, Email teeno chahiye
-        if (!name || !phone || !email) {
+        if (!name.trim() || !phone.trim() || !email.trim()) {
           Alert.alert(
             "Zaroori Hai",
             "Kripya Name, Phone aur Email teeno daalein.",
           );
           setIsLoading(false);
+          return;
+        }
+        if (!/^\d{10}$/.test(phone.trim())) {
+          Alert.alert("Invalid Phone", "Please enter a valid 10-digit mobile number.");
+          return;
+        }
+        if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+          Alert.alert("Invalid Email", "Please enter a valid email address.");
           return;
         }
         if (clientType === "Company" && !businessName.trim()) {
@@ -98,7 +106,8 @@ export default function CustomerLoginScreen() {
       if (response.data.success) {
         setCustomerId(response.data.customerId);
         setIsOtpSent(true); // OTP box ko Enable kar dega!
-        Alert.alert("OTP Sent", "OTP aapke email par bhej diya gaya hai!");
+        setOtp("");
+        Alert.alert("OTP Sent", response.data?.message || "OTP bhej diya gaya hai!");
       }
     } catch (error: any) {
       const errorMsg =
@@ -138,7 +147,7 @@ export default function CustomerLoginScreen() {
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length < 4) {
+    if (otp.trim().length !== 6) {
       Alert.alert("Error", "Sahi OTP daalein.");
       return;
     }
@@ -216,8 +225,10 @@ export default function CustomerLoginScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              <Text style={styles.fieldLabel}>Full Name *</Text>
               <TextInput
                 style={styles.input}
+                placeholderTextColor="#6B7280"
                 placeholder="Full Name"
                 value={name}
                 onChangeText={value => setName(value.toLocaleUpperCase())}
@@ -226,7 +237,8 @@ export default function CustomerLoginScreen() {
               />
               {clientType === "Company" && (
                 <>
-                  <TextInput style={styles.input} placeholder="Company Name *" value={businessName}
+                  <Text style={styles.fieldLabel}>Company Name *</Text>
+                  <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Company Name *" value={businessName}
                     onChangeText={value => setBusinessName(value.toLocaleUpperCase())}
                     autoCapitalize="characters" editable={!isOtpSent} />
                   <Text style={{ fontWeight: "700", color: "#334155", marginBottom: 8 }}>Industry Type</Text>
@@ -235,17 +247,20 @@ export default function CustomerLoginScreen() {
                       <TouchableOpacity key={type} disabled={isOtpSent} onPress={() => setBusinessType(type)}
                         style={{ paddingVertical: 8, paddingHorizontal: 11, borderRadius: 9, borderWidth: 1,
                           borderColor: businessType === type ? "#059669" : "#CBD5E1", backgroundColor: businessType === type ? "#D1FAE5" : "#FFFFFF" }}>
-                        <Text>{type}</Text>
+                        <Text style={{ color: "#111827", fontWeight: "600" }}>{type}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <TextInput style={styles.input} placeholder="GST Number (optional)" value={gstNumber}
+                  <Text style={styles.fieldLabel}>GST Number (optional)</Text>
+                  <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="GST Number (optional)" value={gstNumber}
                     onChangeText={value => setGstNumber(value.toUpperCase())}
                     maxLength={15} autoCapitalize="characters" editable={!isOtpSent} />
                 </>
               )}
+              <Text style={styles.fieldLabel}>Phone Number *</Text>
               <TextInput
                 style={styles.input}
+                placeholderTextColor="#6B7280"
                 placeholder="Phone Number"
                 keyboardType="numeric"
                 maxLength={10}
@@ -254,8 +269,10 @@ export default function CustomerLoginScreen() {
                 editable={!isOtpSent}
                 onFocus={keepFormVisible}
               />
+              <Text style={styles.fieldLabel}>Email Address *</Text>
               <TextInput
                 style={styles.input}
+                placeholderTextColor="#6B7280"
                 placeholder="Email Address"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -267,8 +284,11 @@ export default function CustomerLoginScreen() {
             </>
           ) : (
             /* ----- LOGIN FIELD (Default) ----- */
+            <>
+            <Text style={styles.fieldLabel}>Registered Phone Number or Email</Text>
             <TextInput
               style={styles.input}
+              placeholderTextColor="#6B7280"
               placeholder="Phone Number / Email"
               autoCapitalize="none"
               value={loginId}
@@ -276,9 +296,11 @@ export default function CustomerLoginScreen() {
               editable={!isOtpSent} // OTP aane ke baad isko lock kar denge
               onFocus={keepFormVisible}
             />
+            </>
           )}
 
           {/* ----- OTP FIELD (Shuru me disabled rahega) ----- */}
+          <Text style={styles.fieldLabel}>OTP (6 digits)</Text>
           <TextInput
             style={[
               styles.input,
@@ -286,6 +308,7 @@ export default function CustomerLoginScreen() {
               !isOtpSent && styles.disabledInput, // Agar OTP nahi bheja toh Grey dikhega
             ]}
             placeholder="OTP daalein"
+            placeholderTextColor="#6B7280"
             keyboardType="numeric"
             maxLength={6}
             value={otp}
@@ -314,6 +337,16 @@ export default function CustomerLoginScreen() {
             )}
           </TouchableOpacity>
 
+          {isOtpSent && (
+            <View style={styles.otpActions}>
+              <TouchableOpacity disabled={isLoading} onPress={handleSendOtp}>
+                <Text style={styles.otpActionText}>Resend OTP</Text>
+              </TouchableOpacity>
+              <TouchableOpacity disabled={isLoading} onPress={() => { setIsOtpSent(false); setOtp(""); setCustomerId(null); }}>
+                <Text style={styles.otpActionText}>Change Email / Phone</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {/* ----- TOGGLE BUTTON (Naya Account / Purana Account) ----- */}
           {!isOtpSent && ( // OTP aane ke baad mode change karne ka option chhupa denge
             <TouchableOpacity
@@ -367,7 +400,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   subText: { fontSize: 14, color: "#6B7280", marginBottom: 30, lineHeight: 20 },
-  form: { gap: 15 },
+  form: { gap: 10 },
+  fieldLabel: { color: "#111827", fontSize: 14, fontWeight: "700", marginBottom: 3 },
+  otpActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 8, gap: 8 },
+  otpActionText: { color: "#0052CC", fontSize: 14, fontWeight: "700" },
   input: {
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
@@ -381,9 +417,9 @@ const styles = StyleSheet.create({
   // OTP box ki styling
   otpInput: { textAlign: "center", fontSize: 20, letterSpacing: 5 },
   disabledInput: {
-    backgroundColor: "#E5E7EB",
-    color: "#9CA3AF",
-    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
+    color: "#374151",
+    borderColor: "#CBD5E1",
   }, // Band hone par grey dikhega
 
   mainButton: {

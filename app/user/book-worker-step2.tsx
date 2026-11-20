@@ -40,6 +40,7 @@ type BookingDraft = {
   skillName?: string;
   minRating?: number;
   workerCount?: number;
+  duration?: "FULL_DAY" | "2" | "3" | "4";
   assignmentMode?: "AUTO" | "CUSTOMER_SELECT";
   workLatitude?: number;
   workLongitude?: number;

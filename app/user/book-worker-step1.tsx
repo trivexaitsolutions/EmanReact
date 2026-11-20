@@ -35,6 +35,7 @@ export default function BookWorkerStep1() {
   const [selectedSkillName, setSelectedSkillName] = useState("");
   const [minRating, setMinRating] = useState(3);
   const [workerCount, setWorkerCount] = useState(1);
+  const [duration, setDuration] = useState<"FULL_DAY" | "2" | "3" | "4">("FULL_DAY");
   const [skillModalVisible, setSkillModalVisible] = useState(false);
   const [skillSearch, setSkillSearch] = useState("");
   const [modalSkillId, setModalSkillId] = useState<number | null>(null);
@@ -85,6 +86,7 @@ export default function BookWorkerStep1() {
       if (draft.workerCount) {
         setWorkerCount(Number(draft.workerCount));
       }
+      setDuration(["2", "3", "4"].includes(String(draft.duration)) ? String(draft.duration) as "2" | "3" | "4" : "FULL_DAY");
     } catch (error) {
       console.log("Draft load error:", error);
     }
@@ -149,6 +151,10 @@ export default function BookWorkerStep1() {
         skillName: selectedSkillName,
         minRating,
         workerCount,
+        duration,
+        // Duration changes invalidate previously chosen workers and prices.
+        selectedWorkerIds: existingDraft.duration === duration ? existingDraft.selectedWorkerIds || [] : [],
+        selectedWorkers: existingDraft.duration === duration ? existingDraft.selectedWorkers || [] : [],
       };
 
       await AsyncStorage.setItem(
@@ -181,7 +187,7 @@ export default function BookWorkerStep1() {
 
       <BookingStepHeader step={1} />
 
-      <View style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{paddingBottom: 22}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Select Skill</Text>
 
         <View style={styles.skillGrid}>
@@ -332,7 +338,25 @@ export default function BookWorkerStep1() {
           </View>
         </View>
 
-      </View>
+        <Text style={styles.sectionTitle}>Work Duration</Text>
+        <View style={styles.durationGrid}>
+          {([
+            { value: "FULL_DAY", label: "Full Day" },
+            { value: "2", label: "2 Hours" },
+            { value: "3", label: "3 Hours" },
+            { value: "4", label: "4 Hours" },
+          ] as const).map((option) => (
+            <TouchableOpacity key={option.value} accessibilityRole="radio"
+              accessibilityState={{ selected: duration === option.value }}
+              style={[styles.durationChoice, duration === option.value && styles.durationChoiceSelected]}
+              onPress={() => setDuration(option.value)}>
+              <Text style={[styles.durationChoiceText, duration === option.value && styles.durationChoiceTextSelected]}>{option.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.durationHelper}>Only workers available for this duration will be shown. Full Day is selected by default.</Text>
+
+      </ScrollView>
 
       <Modal
         visible={skillModalVisible}
@@ -448,6 +472,12 @@ export default function BookWorkerStep1() {
 }
 
 const styles = StyleSheet.create({
+  durationGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginTop: 7 },
+  durationChoice: { paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1.5, borderColor: "#D1D5DB", backgroundColor: "#FFFFFF", borderRadius: 12 },
+  durationChoiceSelected: { borderColor: "#16863A", backgroundColor: "#DCFCE7" },
+  durationChoiceText: { color: "#374151", fontSize: 14, fontWeight: "700" },
+  durationChoiceTextSelected: { color: "#166534" },
+  durationHelper: { fontSize: 12, color: "#4B5563", marginTop: 9, marginBottom: 8 },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",

@@ -461,7 +461,7 @@ export default function WorkerDashboard() {
         </View>
         {workerData?.ratePreview && (
           <Text style={{ color: "#64748B", fontSize: 11, marginTop: 10 }}>
-            Starting estimates. Actual payout depends on selected skill, rating and pool rate.
+            Duration-wise starting prices; final booked amount is confirmed at checkout.
           </Text>
         )}
       </View>

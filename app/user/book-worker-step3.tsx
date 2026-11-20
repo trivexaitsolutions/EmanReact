@@ -2,12 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { Check, MapPin, X } from "lucide-react-native";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,13 +19,13 @@ import RazorpayCheckout from "react-native-razorpay";
 import { API_URL } from "../../constants/api";
 import BookingStepHeader from "../../components/ui/booking-step-header";
 
-const RAZORPAY_KEY_ID = "rzp_test_SouUYINcIpP7iB";
 
 type BookingDraft = {
   skillId?: number;
   skillName?: string;
   minRating?: number;
   workerCount?: number;
+  duration?: "FULL_DAY" | "2" | "3" | "4";
   selectedNakas?: any[];
   nakaIds?: number[];
   addressId?: number;
@@ -42,6 +43,15 @@ type BookingDraft = {
   workAddress?: string;
   serviceRadiusKm?: number;
   serviceRadiusMeters?: number;
+};
+
+const distanceBetween = (a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) => {
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const dLat = radians(b.latitude - a.latitude);
+  const dLng = radians(b.longitude - a.longitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(radians(a.latitude)) *
+    Math.cos(radians(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 };
 
 export default function BookWorkerStep3() {
@@ -124,8 +134,18 @@ export default function BookWorkerStep3() {
 
         const defaultAddress = addressList.find((item: any) => item.isDefault);
 
-        const initialAddress =
-          draftAddress || defaultAddress || addressList[0] || null;
+        const candidate = draftAddress || defaultAddress || addressList[0] || null;
+        // A saved address in another area must not silently replace the
+        // work-site coordinates used to match the selected workers.
+        const candidateLat = candidate?.latitude == null ? NaN : Number(candidate.latitude);
+        const candidateLng = candidate?.longitude == null ? NaN : Number(candidate.longitude);
+        const workLat = Number(parsedDraft.workLatitude);
+        const workLng = Number(parsedDraft.workLongitude);
+        const differentSite = candidate && Number.isFinite(candidateLat) && Number.isFinite(candidateLng) &&
+          Number.isFinite(workLat) && Number.isFinite(workLng) &&
+          distanceBetween({ latitude: candidateLat, longitude: candidateLng },
+            { latitude: workLat, longitude: workLng }) > 250;
+        const initialAddress = differentSite ? null : candidate;
 
         setSelectedAddress(initialAddress);
 
@@ -195,49 +215,72 @@ export default function BookWorkerStep3() {
   };
 
   const handleSelectAddress = async (address: any) => {
-    setSelectedAddress(address);
     setShowAddressModal(false);
-
+    const addressLat = address?.latitude == null ? NaN : Number(address.latitude);
+    const addressLng = address?.longitude == null ? NaN : Number(address.longitude);
+    if (!Number.isFinite(addressLat) || !Number.isFinite(addressLng)) {
+      Alert.alert("GPS Location Needed", "Is address mein coordinates missing hain. Edit karke location capture karein.", [
+        { text: "Update Address", onPress: () => router.push({ pathname: "/user/manage-addresses", params: { fromBooking: "1" } }) },
+      ]);
+      return;
+    }
     try {
       const savedDraft = await AsyncStorage.getItem("newBookingDraft");
-
       const oldDraft = savedDraft ? JSON.parse(savedDraft) : {};
-
+      const currentLat = Number(oldDraft.workLatitude);
+      const currentLng = Number(oldDraft.workLongitude);
+      const needsRematch = !Number.isFinite(currentLat) || !Number.isFinite(currentLng) ||
+        distanceBetween({ latitude: currentLat, longitude: currentLng },
+          { latitude: addressLat, longitude: addressLng }) > 250;
       const updatedDraft = {
         ...oldDraft,
         addressId: Number(address.id),
+        workLatitude: addressLat,
+        workLongitude: addressLng,
+        workAddress: [address.addressLine, address.mapAddress].filter(Boolean).join(" · ") || oldDraft.workAddress,
+        ...(needsRematch ? { selectedWorkerIds: [], selectedWorkers: [], selectedNakas: [], nakaIds: [] } : {}),
       };
-
-      await AsyncStorage.setItem(
-        "newBookingDraft",
-        JSON.stringify(updatedDraft),
-      );
-
+      await AsyncStorage.setItem("newBookingDraft", JSON.stringify(updatedDraft));
       setDraft(updatedDraft);
+      setSelectedAddress(address);
+      if (needsRematch) {
+        Alert.alert("Work Site Changed", "Nayi address location ke nearby workers dobara check karne hain.", [
+          { text: "Continue", onPress: () => router.replace("/user/book-worker-step2") },
+        ]);
+      }
     } catch (error) {
       console.log("Address draft save error:", error);
+      Alert.alert("Error", "Work address select nahi ho paya.");
     }
   };
+
+  const paymentInProgressRef = useRef(false);
 
   const cancelPendingBookingSafely = async (
     bookingId: number,
     customerId: number,
-  ) => {
+  ): Promise<{ cancelled: boolean; code?: string; message?: string }> => {
     try {
-      await axios.post(`${API_URL}/user/cancel-pending-booking`, {
+      const response = await axios.post(`${API_URL}/user/cancel-pending-booking`, {
         bookingId,
         customerId,
       });
+      return {
+        cancelled: response.data?.success === true,
+        message: response.data?.message,
+      };
     } catch (error: any) {
-      console.log(
-        "Pending booking cancellation error:",
-        error?.response?.data || error,
-      );
+      console.log("Pending booking cancellation error:", error?.response?.data || error);
+      return {
+        cancelled: false,
+        code: error?.response?.data?.code || "CANCEL_FAILED",
+        message: error?.response?.data?.message,
+      };
     }
   };
 
   const handleProceedToPayment = async () => {
-    if (isPaying) {
+    if (isPaying || paymentInProgressRef.current) {
       return;
     }
 
@@ -251,8 +294,9 @@ export default function BookWorkerStep3() {
     }
 
     if (!selectedAddress?.id) {
-      Alert.alert("Select Address", "Please select your work address.");
-
+      Alert.alert("Select Address", "Please select or add your work address before payment.", [
+        { text: "Add / Choose Address", onPress: () => setShowAddressModal(true) },
+      ]);
       return;
     }
 
@@ -317,6 +361,7 @@ export default function BookWorkerStep3() {
 
     let paymentCompleted = false;
 
+    paymentInProgressRef.current = true;
     try {
       setIsPaying(true);
 
@@ -334,6 +379,7 @@ export default function BookWorkerStep3() {
           skillId: Number(draft.skillId),
 
           workerCount: Number(draft.workerCount || 1),
+          duration: draft.duration || "FULL_DAY",
 
           minRating: Number(draft.minRating || 0),
 
@@ -369,14 +415,29 @@ export default function BookWorkerStep3() {
         draft.selectedWorkers.length > 0 &&
         Math.abs(Number(initiateResponse.data.totalAmount) - totalAmount) > 0.01
       ) {
-        const priceError: any = new Error("Pool rate changed. Please review the latest worker prices before paying.");
+        const priceError: any = new Error("Worker rate or availability changed. Please review the latest worker prices before paying.");
         priceError.code = "POOL_RATE_CHANGED";
         throw priceError;
       }
 
       const razorpayOrder = initiateResponse.data.razorpayOrder;
 
-      if (!createdBookingId || !razorpayOrder?.id || !razorpayOrder?.amount) {
+      if (draft.assignmentMode !== "CUSTOMER_SELECT" && Math.abs(Number(initiateResponse.data.totalAmount) - totalAmount) > 0.01) {
+        const confirmed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Confirm Final Worker Price",
+            `Selected workers total: ₹${Number(initiateResponse.data.totalAmount).toFixed(2)}\nEstimated amount: ₹${totalAmount.toFixed(2)}\n\nProceed with the exact backend-verified worker rate?`,
+            [
+              { text: "Cancel Booking", style: "cancel", onPress: () => resolve(false) },
+              { text: "Proceed to Pay", onPress: () => resolve(true) },
+            ],
+            { cancelable: false },
+          );
+        });
+        if (!confirmed) throw new Error("Booking cancelled before payment.");
+      }
+
+      if (!createdBookingId || !razorpayOrder?.id || !razorpayOrder?.amount || !initiateResponse.data.razorpayKeyId) {
         throw new Error("Invalid payment order received.");
       }
 
@@ -385,7 +446,7 @@ export default function BookWorkerStep3() {
        * Razorpay popup open karo.
        */
       const paymentData: any = await RazorpayCheckout.open({
-        key: RAZORPAY_KEY_ID,
+        key: initiateResponse.data.razorpayKeyId,
 
         order_id: razorpayOrder.id,
 
@@ -465,7 +526,21 @@ export default function BookWorkerStep3() {
        * workers release karo.
        */
       if (createdBookingId && !paymentCompleted) {
-        await cancelPendingBookingSafely(createdBookingId, Number(customer.id));
+        const cancellation = await cancelPendingBookingSafely(
+          createdBookingId, Number(customer.id)
+        );
+        if (cancellation.code === "PAYMENT_RECEIVED") {
+          Alert.alert("Payment Confirmed", "Gateway par payment mil gaya hai. Aapki booking open kar rahe hain.");
+          router.replace("/user/active-booking");
+          return;
+        }
+        if (!cancellation.cancelled) {
+          Alert.alert(
+            "Booking Status Uncertain",
+            cancellation.message || "Worker reservation release confirm nahi hui. Dobara payment na karein; booking status check karein."
+          );
+          return;
+        }
       }
 
       /*
@@ -534,9 +609,10 @@ export default function BookWorkerStep3() {
         error?.message ||
         "Payment complete nahi ho paya.";
 
-      Alert.alert("Payment Cancelled", errorMessage);
+      Alert.alert(createdBookingId ? "Payment Cancelled" : "Booking Could Not Start", errorMessage);
     } finally {
       setIsPaying(false);
+      paymentInProgressRef.current = false;
     }
   };
 
@@ -549,10 +625,15 @@ export default function BookWorkerStep3() {
       }, 0)
     : 0;
 
+  const selectedDuration = draft.duration || "FULL_DAY";
+  const durationLabel = selectedDuration === "FULL_DAY" ? "Full Day" : `${selectedDuration} Hours`;
+  const estimatePerWorker = selectedDuration === "FULL_DAY"
+    ? unitPrice
+    : Math.round(unitPrice * Number(selectedDuration) / 8 * 100) / 100;
   const totalAmount =
     draft.assignmentMode === "CUSTOMER_SELECT" && selectedWorkerTotal > 0
-      ? selectedWorkerTotal
-      : unitPrice * workerCount;
+      ? Number(selectedWorkerTotal.toFixed(2))
+      : Number((estimatePerWorker * workerCount).toFixed(2));
 
   const ratingText =
     Number(draft.minRating || 0) === 0
@@ -589,12 +670,14 @@ export default function BookWorkerStep3() {
       <View style={styles.screen}>
         <BookingStepHeader step={3} disabled={isPaying} />
 
-        <View
-          style={[
-            styles.content,
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.scrollBody,
             isSmallScreen && styles.contentSmall,
             isVerySmallScreen && styles.contentVerySmall,
           ]}
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.detailsCard}>
             <Text style={styles.sectionTitle}>Booking Details</Text>
@@ -618,6 +701,11 @@ export default function BookWorkerStep3() {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Workers</Text>
               <Text style={styles.detailValue}>{workerCount}</Text>
+            </View>
+            <View style={styles.rowDivider} />
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Work Duration</Text>
+              <Text style={styles.detailValue}>{durationLabel}</Text>
             </View>
 
             {draft.assignmentMode === "CUSTOMER_SELECT" ? (
@@ -660,11 +748,59 @@ export default function BookWorkerStep3() {
             </View>
           </View>
 
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.addressCard}
+            onPress={() => setShowAddressModal(true)}
+            disabled={isPaying}
+          >
+            <View style={styles.addressCardHeader}>
+              <MapPin color="#16863A" size={19} />
+              <Text style={styles.addressTitle}>Work Address *</Text>
+              <Text style={styles.addressLink}>{selectedAddress ? "Change" : "Add / Choose"}</Text>
+            </View>
+            <Text style={styles.addressSummary} numberOfLines={3}>
+              {selectedAddress
+                ? [selectedAddress.addressLine, selectedAddress.city, selectedAddress.pincode].filter(Boolean).join(", ")
+                : "No work address selected. Tap here to add one before payment."}
+            </Text>
+          </TouchableOpacity>
+
           <View style={styles.amountCard}>
-            <Text style={styles.amountTitle}>Estimated Amount</Text>
+            <Text style={styles.amountTitle}>{draft.assignmentMode === "CUSTOMER_SELECT" ? "Worker Total" : "Estimated Amount (confirmed before payment)"}</Text>
             <Text style={styles.amountValue}>₹{totalAmount}</Text>
           </View>
-        </View>
+        </ScrollView>
+
+        <Modal visible={showAddressModal} transparent animationType="slide" onRequestClose={() => setShowAddressModal(false)}>
+          <View style={styles.addressOverlay}>
+            <View style={styles.addressModal}>
+              <View style={styles.addressModalHeader}>
+                <Text style={styles.addressTitle}>Choose Work Address</Text>
+                <TouchableOpacity onPress={() => setShowAddressModal(false)}><X size={22} color="#111827" /></TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 350 }}>
+                {addresses.map((address) => (
+                  <TouchableOpacity key={address.id} style={styles.addressOption} onPress={() => void handleSelectAddress(address)}>
+                    <Text style={styles.addressOptionTitle}>{address.title || "Work Site"} {address.isDefault ? "· Default" : ""}</Text>
+                    <Text style={styles.addressSummary}>{[address.addressLine, address.city, address.pincode].filter(Boolean).join(", ")}</Text>
+                    {!(address.latitude && address.longitude) && <Text style={styles.addressMissingGps}>GPS missing — update required</Text>}
+                  </TouchableOpacity>
+                ))}
+                {!addresses.length && <Text style={styles.addressSummary}>No saved address found. Add a work-site address using GPS.</Text>}
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.addressAddButton}
+                onPress={() => {
+                  setShowAddressModal(false);
+                  router.push({ pathname: "/user/manage-addresses", params: { fromBooking: "1" } });
+                }}
+              >
+                <Text style={styles.addressAddText}>+ Add / Manage Work Addresses</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         <View style={[styles.footer, isSmallScreen && styles.footerSmall]}>
           <TouchableOpacity
@@ -692,6 +828,20 @@ export default function BookWorkerStep3() {
 }
 
 const styles = StyleSheet.create({
+  scrollBody: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 20, gap: 12 },
+  addressCard: { backgroundColor: "#FFFFFF", borderRadius: 15, borderColor: "#B7E3C5", borderWidth: 1.4, padding: 13 },
+  addressCardHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
+  addressTitle: { color: "#111827", fontSize: 15, fontWeight: "800", flex: 1 },
+  addressLink: { color: "#16863A", fontSize: 12, fontWeight: "800" },
+  addressSummary: { fontSize: 13, color: "#4B5563", lineHeight: 19, marginTop: 8 },
+  addressOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.52)" },
+  addressModal: { backgroundColor: "#FFFFFF", borderTopRightRadius: 23, borderTopLeftRadius: 23, padding: 19 },
+  addressModalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  addressOption: { borderColor: "#E5E7EB", borderWidth: 1, borderRadius: 12, marginVertical: 6, padding: 12 },
+  addressOptionTitle: { fontSize: 14, fontWeight: "800", color: "#111827" },
+  addressMissingGps: { fontSize: 11, fontWeight: "700", color: "#B45309", marginTop: 5 },
+  addressAddButton: { backgroundColor: "#16863A", padding: 15, borderRadius: 13, marginTop: 14, alignItems: "center" },
+  addressAddText: { fontSize: 14, fontWeight: "800", color: "#FFFFFF" },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
