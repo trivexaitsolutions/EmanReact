@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack, useFocusEffect } from "expo-router";
@@ -55,6 +56,7 @@ const distanceBetween = (a: { latitude: number; longitude: number }, b: { latitu
 };
 
 export default function BookWorkerStep3() {
+  const { t, entityText } = useI18n();
   const { height } = useWindowDimensions();
 
   const isSmallScreen = height < 760;
@@ -93,7 +95,7 @@ export default function BookWorkerStep3() {
       const savedDraft = await AsyncStorage.getItem("newBookingDraft");
 
       if (!session) {
-        Alert.alert("Session Error", "Please login again.");
+        Alert.alert(t("Session Error"), t("Please login again."));
 
         router.replace("/");
         return;
@@ -101,8 +103,8 @@ export default function BookWorkerStep3() {
 
       if (!savedDraft) {
         Alert.alert(
-          "Booking Details Missing",
-          "Please start your booking again.",
+          t("Booking Details Missing"),
+          t("Please start your booking again."),
         );
 
         router.replace("/user/book-worker-step1");
@@ -170,7 +172,7 @@ export default function BookWorkerStep3() {
     } catch (error: any) {
       console.log("Step 3 load error:", error?.response?.data || error);
 
-      Alert.alert("Error", "Booking details load nahi ho payi.");
+      Alert.alert(t("Error"), t("Booking details load nahi ho payi."));
     } finally {
       setIsLoading(false);
     }
@@ -219,8 +221,8 @@ export default function BookWorkerStep3() {
     const addressLat = address?.latitude == null ? NaN : Number(address.latitude);
     const addressLng = address?.longitude == null ? NaN : Number(address.longitude);
     if (!Number.isFinite(addressLat) || !Number.isFinite(addressLng)) {
-      Alert.alert("GPS Location Needed", "Is address mein coordinates missing hain. Edit karke location capture karein.", [
-        { text: "Update Address", onPress: () => router.push({ pathname: "/user/manage-addresses", params: { fromBooking: "1" } }) },
+      Alert.alert(t("GPS Location Needed"), t("Is address mein coordinates missing hain. Edit karke location capture karein."), [
+        { text: t("Update Address"), onPress: () => router.push({ pathname: "/user/manage-addresses", params: { fromBooking: "1" } }) },
       ]);
       return;
     }
@@ -244,13 +246,13 @@ export default function BookWorkerStep3() {
       setDraft(updatedDraft);
       setSelectedAddress(address);
       if (needsRematch) {
-        Alert.alert("Work Site Changed", "Nayi address location ke nearby workers dobara check karne hain.", [
-          { text: "Continue", onPress: () => router.replace("/user/book-worker-step2") },
+        Alert.alert(t("Work Site Changed"), t("Nayi address location ke nearby workers dobara check karne hain."), [
+          { text: t("Continue"), onPress: () => router.replace("/user/book-worker-step2") },
         ]);
       }
     } catch (error) {
       console.log("Address draft save error:", error);
-      Alert.alert("Error", "Work address select nahi ho paya.");
+      Alert.alert(t("Error"), t("Work address select nahi ho paya."));
     }
   };
 
@@ -286,30 +288,30 @@ export default function BookWorkerStep3() {
 
     if (!customer?.id) {
       Alert.alert(
-        "Session Error",
-        "Customer session not found. Please login again.",
+        t("Session Error"),
+        t("Customer session not found. Please login again."),
       );
 
       return;
     }
 
     if (!selectedAddress?.id) {
-      Alert.alert("Select Address", "Please select or add your work address before payment.", [
-        { text: "Add / Choose Address", onPress: () => setShowAddressModal(true) },
+      Alert.alert(t("Select Address"), t("Please select or add your work address before payment."), [
+        { text: t("Add / Choose Address"), onPress: () => setShowAddressModal(true) },
       ]);
       return;
     }
 
     if (!draft.skillId) {
-      Alert.alert("Skill Missing", "Please select a worker skill.");
+      Alert.alert(t("Skill Missing"), t("Please select a worker skill."));
 
       return;
     }
 
     if (!Number.isFinite(Number(unitPrice)) || Number(unitPrice) <= 0) {
       Alert.alert(
-        "Rate Missing",
-        "Selected skill ka rate load nahi hua hai. Please previous step par jaake skill/rating dobara select karein.",
+        t("Rate Missing"),
+        t("Selected skill ka rate load nahi hua hai. Please previous step par jaake skill/rating dobara select karein."),
       );
 
       return;
@@ -320,11 +322,11 @@ export default function BookWorkerStep3() {
       !Number.isFinite(Number(draft.workLongitude))
     ) {
       Alert.alert(
-        "Work Location Missing",
-        "Please confirm the exact work location on map.",
+        t("Work Location Missing"),
+        t("Please confirm the exact work location on map."),
         [
           {
-            text: "Confirm Location",
+            text: t("Confirm Location"),
             onPress: () => router.push("/user/book-worker-step2"),
           },
         ],
@@ -342,11 +344,11 @@ export default function BookWorkerStep3() {
 
       if (selectedWorkerIds.length !== Number(draft.workerCount || 1)) {
         Alert.alert(
-          "Select Workers",
-          "Please select the required number of workers before payment.",
+          t("Select Workers"),
+          t("Please select the required number of workers before payment."),
           [
             {
-              text: "Select Workers",
+              text: t("Select Workers"),
               onPress: () =>
                 router.push("/user/book-worker-select-workers"),
             },
@@ -425,11 +427,11 @@ export default function BookWorkerStep3() {
       if (draft.assignmentMode !== "CUSTOMER_SELECT" && Math.abs(Number(initiateResponse.data.totalAmount) - totalAmount) > 0.01) {
         const confirmed = await new Promise<boolean>((resolve) => {
           Alert.alert(
-            "Confirm Final Worker Price",
+            t("Confirm Final Worker Price"),
             `Selected workers total: ₹${Number(initiateResponse.data.totalAmount).toFixed(2)}\nEstimated amount: ₹${totalAmount.toFixed(2)}\n\nProceed with the exact backend-verified worker rate?`,
             [
-              { text: "Cancel Booking", style: "cancel", onPress: () => resolve(false) },
-              { text: "Proceed to Pay", onPress: () => resolve(true) },
+              { text: t("Cancel Booking"), style: "cancel", onPress: () => resolve(false) },
+              { text: t("Proceed to Pay"), onPress: () => resolve(true) },
             ],
             { cancelable: false },
           );
@@ -530,13 +532,13 @@ export default function BookWorkerStep3() {
           createdBookingId, Number(customer.id)
         );
         if (cancellation.code === "PAYMENT_RECEIVED") {
-          Alert.alert("Payment Confirmed", "Gateway par payment mil gaya hai. Aapki booking open kar rahe hain.");
+          Alert.alert(t("Payment Confirmed"), t("Gateway par payment mil gaya hai. Aapki booking open kar rahe hain."));
           router.replace("/user/active-booking");
           return;
         }
         if (!cancellation.cancelled) {
           Alert.alert(
-            "Booking Status Uncertain",
+            t("Booking Status Uncertain"),
             cancellation.message || "Worker reservation release confirm nahi hui. Dobara payment na karein; booking status check karein."
           );
           return;
@@ -549,8 +551,8 @@ export default function BookWorkerStep3() {
        */
       if (paymentCompleted) {
         Alert.alert(
-          "Payment Verification Pending",
-          "Payment complete hua hai, lekin verification me dikkat aayi. Dobara payment mat karein. Please admin se contact karein.",
+          t("Payment Verification Pending"),
+          t("Payment complete hua hai, lekin verification me dikkat aayi. Dobara payment mat karein. Please admin se contact karein."),
         );
 
         return;
@@ -560,9 +562,9 @@ export default function BookWorkerStep3() {
 
       if (errorCode === "POOL_RATE_CHANGED") {
         Alert.alert(
-          "Pool Rate Updated",
-          "Worker ke pool rates change hue hain. Payment se pehle updated price check karein.",
-          [{ text: "Review Prices", onPress: () => router.replace("/user/book-worker-select-workers") }],
+          t("Pool Rate Updated"),
+          t("Worker ke pool rates change hue hain. Payment se pehle updated price check karein."),
+          [{ text: t("Review Prices"), onPress: () => router.replace("/user/book-worker-select-workers") }],
         );
         return;
       }
@@ -572,12 +574,12 @@ export default function BookWorkerStep3() {
         errorCode === "SELECTED_WORKERS_INVALID"
       ) {
         Alert.alert(
-          "Worker No Longer Available",
+          t("Worker No Longer Available"),
           error?.response?.data?.message ||
             "Selected worker ab available nahi hai. Please worker dobara select karein.",
           [
             {
-              text: "Select Worker",
+              text: t("Select Worker"),
               onPress: () =>
                 router.replace("/user/book-worker-select-workers"),
             },
@@ -589,12 +591,12 @@ export default function BookWorkerStep3() {
 
       if (errorCode === "NO_NAKAS_IN_RADIUS") {
         Alert.alert(
-          "Service Area Changed",
+          t("Service Area Changed"),
           error?.response?.data?.message ||
             "Is work location ke nearby verified Naka nahi mila.",
           [
             {
-              text: "Change Location",
+              text: t("Change Location"),
               onPress: () => router.replace("/user/book-worker-step2"),
             },
           ],
@@ -680,10 +682,10 @@ export default function BookWorkerStep3() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.detailsCard}>
-            <Text style={styles.sectionTitle}>Booking Details</Text>
+            <Text style={styles.sectionTitle}>{t("Booking Details")}</Text>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Skill</Text>
+              <Text style={styles.detailLabel}>{t("Skill")}</Text>
               <Text style={styles.detailValue} numberOfLines={1}>
                 {draft.skillName || "-"}
               </Text>
@@ -692,19 +694,19 @@ export default function BookWorkerStep3() {
             <View style={styles.rowDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Minimum Rating</Text>
+              <Text style={styles.detailLabel}>{t("Minimum Rating")}</Text>
               <Text style={styles.detailValue}>{ratingText}</Text>
             </View>
 
             <View style={styles.rowDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Workers</Text>
+              <Text style={styles.detailLabel}>{t("Workers")}</Text>
               <Text style={styles.detailValue}>{workerCount}</Text>
             </View>
             <View style={styles.rowDivider} />
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Work Duration</Text>
+              <Text style={styles.detailLabel}>{t("Work Duration")}</Text>
               <Text style={styles.detailValue}>{durationLabel}</Text>
             </View>
 
@@ -712,7 +714,7 @@ export default function BookWorkerStep3() {
               <>
                 <View style={styles.rowDivider} />
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Selected Workers</Text>
+                  <Text style={styles.detailLabel}>{t("Selected Workers")}</Text>
                   <Text
                     style={[styles.detailValue, styles.longValue]}
                     numberOfLines={2}
@@ -726,7 +728,7 @@ export default function BookWorkerStep3() {
             <View style={styles.rowDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Nearby Nakas</Text>
+              <Text style={styles.detailLabel}>{t("Nearby Nakas")}</Text>
               <Text
                 style={[styles.detailValue, styles.longValue]}
                 numberOfLines={2}
@@ -738,12 +740,12 @@ export default function BookWorkerStep3() {
             <View style={styles.rowDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Location</Text>
+              <Text style={styles.detailLabel}>{t("Location")}</Text>
               <Text
                 style={[styles.detailValue, styles.longValue]}
                 numberOfLines={2}
               >
-                {draft.workAddress || "Confirmed on map"}
+                {draft.workAddress || t("Confirmed on map")}
               </Text>
             </View>
           </View>
@@ -756,18 +758,18 @@ export default function BookWorkerStep3() {
           >
             <View style={styles.addressCardHeader}>
               <MapPin color="#16863A" size={19} />
-              <Text style={styles.addressTitle}>Work Address *</Text>
-              <Text style={styles.addressLink}>{selectedAddress ? "Change" : "Add / Choose"}</Text>
+              <Text style={styles.addressTitle}>{t("Work Address *")}</Text>
+              <Text style={styles.addressLink}>{t(selectedAddress ? "Change" : "Add / Choose")}</Text>
             </View>
             <Text style={styles.addressSummary} numberOfLines={3}>
               {selectedAddress
                 ? [selectedAddress.addressLine, selectedAddress.city, selectedAddress.pincode].filter(Boolean).join(", ")
-                : "No work address selected. Tap here to add one before payment."}
+                : t("No work address selected. Tap here to add one before payment.")}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.amountCard}>
-            <Text style={styles.amountTitle}>{draft.assignmentMode === "CUSTOMER_SELECT" ? "Worker Total" : "Estimated Amount (confirmed before payment)"}</Text>
+            <Text style={styles.amountTitle}>{t(draft.assignmentMode === "CUSTOMER_SELECT" ? "Worker Total" : "Estimated Amount (confirmed before payment)")}</Text>
             <Text style={styles.amountValue}>₹{totalAmount}</Text>
           </View>
         </ScrollView>
@@ -776,18 +778,18 @@ export default function BookWorkerStep3() {
           <View style={styles.addressOverlay}>
             <View style={styles.addressModal}>
               <View style={styles.addressModalHeader}>
-                <Text style={styles.addressTitle}>Choose Work Address</Text>
+                <Text style={styles.addressTitle}>{t("Choose Work Address")}</Text>
                 <TouchableOpacity onPress={() => setShowAddressModal(false)}><X size={22} color="#111827" /></TouchableOpacity>
               </View>
               <ScrollView style={{ maxHeight: 350 }}>
                 {addresses.map((address) => (
                   <TouchableOpacity key={address.id} style={styles.addressOption} onPress={() => void handleSelectAddress(address)}>
-                    <Text style={styles.addressOptionTitle}>{address.title || "Work Site"} {address.isDefault ? "· Default" : ""}</Text>
+                    <Text style={styles.addressOptionTitle}>{address.title || t("Work Site")} {address.isDefault ? `· ${t("Default")}` : ""}</Text>
                     <Text style={styles.addressSummary}>{[address.addressLine, address.city, address.pincode].filter(Boolean).join(", ")}</Text>
-                    {!(address.latitude && address.longitude) && <Text style={styles.addressMissingGps}>GPS missing — update required</Text>}
+                    {!(address.latitude && address.longitude) && <Text style={styles.addressMissingGps}>{t("GPS missing — update required")}</Text>}
                   </TouchableOpacity>
                 ))}
-                {!addresses.length && <Text style={styles.addressSummary}>No saved address found. Add a work-site address using GPS.</Text>}
+                {!addresses.length && <Text style={styles.addressSummary}>{t("No saved address found. Add a work-site address using GPS.")}</Text>}
               </ScrollView>
               <TouchableOpacity
                 style={styles.addressAddButton}
@@ -796,7 +798,7 @@ export default function BookWorkerStep3() {
                   router.push({ pathname: "/user/manage-addresses", params: { fromBooking: "1" } });
                 }}
               >
-                <Text style={styles.addressAddText}>+ Add / Manage Work Addresses</Text>
+                <Text style={styles.addressAddText}>{t("+ Add / Manage Work Addresses")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -815,10 +817,10 @@ export default function BookWorkerStep3() {
             {isPaying ? (
               <View style={styles.paymentLoadingRow}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.paymentButtonText}>Please Wait...</Text>
+                <Text style={styles.paymentButtonText}>{t("Please Wait...")}</Text>
               </View>
             ) : (
-              <Text style={styles.paymentButtonText}>Proceed to Payment</Text>
+              <Text style={styles.paymentButtonText}>{t("Proceed to Payment")}</Text>
             )}
           </TouchableOpacity>
         </View>

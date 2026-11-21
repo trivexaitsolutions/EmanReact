@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import { API_URL } from "../../constants/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CommonActions } from "@react-navigation/native";
@@ -23,6 +24,7 @@ import {
 } from "react-native";
 
 export default function UserProfile() {
+  const { t, language, languages } = useI18n();
   const navigation = useNavigation();
   const [customer, setCustomer] = useState<any>(null);
 
@@ -43,10 +45,10 @@ export default function UserProfile() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("Logout"), t("Are you sure you want to logout?"), [
+      { text: t("Cancel"), style: "cancel" },
       {
-        text: "Logout",
+        text: t("Logout"),
         style: "destructive",
         onPress: async () => {
           try {
@@ -90,8 +92,8 @@ export default function UserProfile() {
             console.log("Customer logout error:", error);
 
             Alert.alert(
-              "Logout Failed",
-              "Logout karne mein problem hui. Dobara try karein.",
+              t("Logout Failed"),
+              t("Logout karne mein problem hui. Dobara try karein."),
             );
           }
         },
@@ -105,10 +107,8 @@ export default function UserProfile() {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          <Text style={styles.headerSub}>
-            Manage your account and addresses
-          </Text>
+          <Text style={styles.headerTitle}>{t("My Profile")}</Text>
+          <Text style={styles.headerSub}>{t("Manage your account and addresses")}</Text>
         </View>
 
         <View style={styles.profileCard}>
@@ -133,6 +133,16 @@ export default function UserProfile() {
         </View>
 
         <View style={styles.menuBox}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/select-language")}>
+            <View style={styles.menuLeft}>
+              <View style={styles.iconBox}><Settings color="#10B981" size={22} /></View>
+              <View>
+                <Text style={styles.menuTitle}>{t("Change Language")}</Text>
+                <Text style={styles.menuSub}>{languages.find(l => l.code === language)?.nativeName || "English"}</Text>
+              </View>
+            </View>
+            <ChevronRight color="#9CA3AF" size={22} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => router.push("/user/manage-addresses")}
@@ -143,10 +153,8 @@ export default function UserProfile() {
               </View>
 
               <View>
-                <Text style={styles.menuTitle}>Saved Addresses</Text>
-                <Text style={styles.menuSub}>
-                  Add home, office, site or other addresses
-                </Text>
+                <Text style={styles.menuTitle}>{t("Saved Addresses")}</Text>
+                <Text style={styles.menuSub}>{t("Add home, office, site or other addresses")}</Text>
               </View>
             </View>
 
@@ -160,8 +168,8 @@ export default function UserProfile() {
               </View>
 
               <View>
-                <Text style={styles.menuTitle}>Wallet</Text>
-                <Text style={styles.menuSub}>Payments and refunds</Text>
+                <Text style={styles.menuTitle}>{t("Wallet")}</Text>
+                <Text style={styles.menuSub}>{t("Payments and refunds")}</Text>
               </View>
             </View>
 
@@ -175,8 +183,8 @@ export default function UserProfile() {
               </View>
 
               <View>
-                <Text style={styles.menuTitle}>Support</Text>
-                <Text style={styles.menuSub}>Help and contact</Text>
+                <Text style={styles.menuTitle}>{t("Support")}</Text>
+                <Text style={styles.menuSub}>{t("Help and contact")}</Text>
               </View>
             </View>
 
@@ -190,10 +198,8 @@ export default function UserProfile() {
               </View>
 
               <View>
-                <Text style={styles.menuTitle}>Settings</Text>
-                <Text style={styles.menuSub}>
-                  Preferences and account settings
-                </Text>
+                <Text style={styles.menuTitle}>{t("Settings")}</Text>
+                <Text style={styles.menuSub}>{t("Preferences and account settings")}</Text>
               </View>
             </View>
 
@@ -203,7 +209,7 @@ export default function UserProfile() {
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <LogOut color="#EF4444" size={20} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t("Logout")}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

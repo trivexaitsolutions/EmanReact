@@ -1,8 +1,11 @@
+import { useI18n } from '../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import LanguageQuickSwitcher from "../components/language-quick-switcher";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Dimensions,
   Image,
   SafeAreaView,
@@ -15,14 +18,30 @@ import {
 const { width } = Dimensions.get("window");
 
 export default function RoleSelectionScreen() {
+  const { t } = useI18n();
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     checkExistingSession();
   }, []);
 
+  // Android back on the role chooser returns to language choice, not app exit.
+  useFocusEffect(useCallback(() => {
+    if (isChecking) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.push('/select-language');
+      return true;
+    });
+    return () => sub.remove();
+  }, [isChecking]));
+
   const checkExistingSession = async () => {
     try {
+      const chosen = await AsyncStorage.getItem("@eman:language:chosen:v1");
+      if (!chosen) {
+        router.replace("/select-language?initial=1");
+        return;
+      }
       const activeRole = await AsyncStorage.getItem("activeRole");
       const customerSession = await AsyncStorage.getItem("customerSession");
       const workerSession = await AsyncStorage.getItem("workerSession");
@@ -64,6 +83,9 @@ export default function RoleSelectionScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ alignSelf: 'flex-end', marginBottom: 12 }}>
+        <LanguageQuickSwitcher />
+      </View>
       {/* Top Worker Card */}
       <TouchableOpacity
         style={styles.card}
@@ -79,7 +101,7 @@ export default function RoleSelectionScreen() {
 
       {/* Center Text */}
       <View style={styles.textContainer}>
-        <Text style={styles.loginText}>LOGIN</Text>
+        <Text style={styles.loginText}>{t("LOGIN")}</Text>
       </View>
 
       {/* Bottom User/Company Card */}
@@ -112,6 +134,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 50,
   },
+  languageAction: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: "#FFFFFF", borderRadius: 18 },
+  languageText: { fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
   card: {
     width: width * 0.65,
     height: width * 0.65,

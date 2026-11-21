@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/user/dashboard.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -27,6 +28,7 @@ import RazorpayCheckout from "react-native-razorpay";
 import { API_URL } from "../../constants/api";
 
 export default function CustomerDashboard() {
+  const { t, entityText } = useI18n();
   const [customer, setCustomer] = useState<any>(null);
   const [skills, setSkills] = useState([]);
   const [cities, setCities] = useState([]);
@@ -135,8 +137,8 @@ export default function CustomerDashboard() {
       !address
     ) {
       Alert.alert(
-        "Zaroori Details",
-        "Kripya Kaam, City, Naka aur apna Address zaroor bharein!",
+        t("Zaroori Details"),
+        t("Kripya Kaam, City, Naka aur apna Address zaroor bharein!"),
       );
       return;
     }
@@ -175,7 +177,7 @@ export default function CustomerDashboard() {
         RazorpayCheckout.open(options)
           .then(async (data: any) => {
             // 4. Payment Success hone par backend ko batao
-            Alert.alert("Payment Success!", "Payment verify ho rahi hai...");
+            Alert.alert(t("Payment Success!"), t("Payment verify ho rahi hai..."));
 
             const verifyResponse = await axios.post(
               `${API_URL}/user/verify-payment`,
@@ -194,13 +196,13 @@ export default function CustomerDashboard() {
           })
           .catch((error: any) => {
             // Agar payment fail hui ya user ne back daba diya
-            Alert.alert("Payment Cancelled", "Aapka payment pura nahi hua.");
+            Alert.alert(t("Payment Cancelled"), t("Aapka payment pura nahi hua."));
             // Ideal: Backend ko bolo ki "Booking cancel karo aur workers ko wapas free (Available) karo"
           });
       }
     } catch (error: any) {
       Alert.alert(
-        "Error",
+        t("Error"),
         error.response?.data?.message || "Booking initiate nahi ho payi.",
       );
     } finally {
@@ -266,20 +268,20 @@ export default function CustomerDashboard() {
       {/* HEADER */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greetingText}>Welcome back,</Text>
+          <Text style={styles.greetingText}>{t("Welcome back,")}</Text>
           <Text style={styles.nameText}>{customer?.name || "User"}</Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t("Logout")}</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.mainTitle}>Book your workers instantly</Text>
+        <Text style={styles.mainTitle}>{t("Book your workers instantly")}</Text>
 
         {/* 1. SKILL CARD */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>1. What do you need?</Text>
+          <Text style={styles.sectionTitle}>{t("1. What do you need?")}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -300,7 +302,7 @@ export default function CustomerDashboard() {
                     selectedSkill === skill.id && styles.skillTextActive,
                   ]}
                 >
-                  {skill.name}
+                  {entityText("SKILL", skill)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -309,10 +311,10 @@ export default function CustomerDashboard() {
 
         {/* 2. REQUIREMENT CARD (Quantity & Rating) */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>2. Worker Requirements</Text>
+          <Text style={styles.sectionTitle}>{t("2. Worker Requirements")}</Text>
 
           <View style={styles.rowBetween}>
-            <Text style={styles.label}>Number of Workers</Text>
+            <Text style={styles.label}>{t("Number of Workers")}</Text>
             <View style={styles.counterBox}>
               <TouchableOpacity
                 style={styles.mathBtn}
@@ -336,9 +338,7 @@ export default function CustomerDashboard() {
 
           <View style={styles.divider} />
 
-          <Text style={styles.label}>
-            Minimum Rating (
-            {minRating === 0 ? "Any Rating" : `${minRating} Stars & above`})
+          <Text style={styles.label}>{t("Minimum Rating (")}{minRating === 0 ? t("Any Rating") : `${minRating} ${t("Stars & above")}`})
           </Text>
           <View style={styles.starRow}>
             {[1, 2, 3, 4, 5].map((star) => (
@@ -359,9 +359,9 @@ export default function CustomerDashboard() {
 
         {/* 3. LOCATION CARD (City & Naka Dropdowns) */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>3. Service Location</Text>
+          <Text style={styles.sectionTitle}>{t("3. Service Location")}</Text>
 
-          <Text style={styles.label}>Select City</Text>
+          <Text style={styles.label}>{t("Select City")}</Text>
           <TouchableOpacity
             style={styles.dropdownBtn}
             onPress={() => setIsCityModalOpen(true)}
@@ -372,16 +372,14 @@ export default function CustomerDashboard() {
                 !selectedCityId && { color: "#9CA3AF" },
               ]}
             >
-              {selectedCityId ? selectedCityObj?.name : "Choose your city"}
+              {selectedCityId ? selectedCityObj?.name : t("Choose your city")}
             </Text>
             <ChevronDown color="#6B7280" />
           </TouchableOpacity>
 
           {selectedCityId && (
             <>
-              <Text style={[styles.label, { marginTop: 15 }]}>
-                Select Nakas (Multiple allowed)
-              </Text>
+              <Text style={[styles.label, { marginTop: 15 }]}>{t("Select Nakas (Multiple allowed)")}</Text>
               <TouchableOpacity
                 style={styles.dropdownBtn}
                 onPress={() => setIsNakaModalOpen(true)}
@@ -394,7 +392,7 @@ export default function CustomerDashboard() {
                 >
                   {selectedNakas.length > 0
                     ? `${selectedNakas.length} Naka(s) Selected`
-                    : "Choose nearby nakas"}
+                    : t("Choose nearby nakas")}
                 </Text>
                 <ChevronDown color="#6B7280" />
               </TouchableOpacity>
@@ -403,17 +401,15 @@ export default function CustomerDashboard() {
 
           {selectedCityId && (
             <>
-              <Text style={[styles.label, { marginTop: 15 }]}>
-                Saved Address
-              </Text>
+              <Text style={[styles.label, { marginTop: 15 }]}>{t("Saved Address")}</Text>
 
               <TouchableOpacity
                 style={styles.savedAddressBtn}
                 onPress={() => {
                   if (cityMatchedAddresses.length === 0) {
                     Alert.alert(
-                      "No Address Found",
-                      "Is city ke liye saved address nahi hai. Aap manually address enter kar sakte hain ya Profile me address add kar sakte hain.",
+                      t("No Address Found"),
+                      t("Is city ke liye saved address nahi hai. Aap manually address enter kar sakte hain ya Profile me address add kar sakte hain."),
                     );
                     return;
                   }
@@ -429,10 +425,10 @@ export default function CustomerDashboard() {
                     ]}
                   >
                     {selectedAddress
-                      ? selectedAddress.title || "Saved Address"
+                      ? selectedAddress.title || t("Saved Address")
                       : cityMatchedAddresses.length > 0
-                        ? "Choose saved address"
-                        : "No saved address for this city"}
+                        ? t("Choose saved address")
+                        : t("No saved address for this city")}
                   </Text>
 
                   {selectedAddress ? (
@@ -447,10 +443,10 @@ export default function CustomerDashboard() {
             </>
           )}
 
-          <Text style={[styles.label, { marginTop: 15 }]}>Exact Address</Text>
+          <Text style={[styles.label, { marginTop: 15 }]}>{t("Exact Address")}</Text>
           <TextInput
             style={styles.textArea}
-            placeholder="Flat No, Building, Street Name..."
+            placeholder={t("Flat No, Building, Street Name...")}
             multiline
             numberOfLines={3}
             value={address}
@@ -459,7 +455,7 @@ export default function CustomerDashboard() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Landmark (Optional)"
+            placeholder={t("Landmark (Optional)")}
             value={landmark}
             onChangeText={setLandmark}
           />
@@ -471,19 +467,18 @@ export default function CustomerDashboard() {
       {/* BOTTOM PAYMENT BAR */}
       <View style={styles.footer}>
         <View style={styles.priceBox}>
-          <Text style={styles.priceLabel}>Amount Payable</Text>
+          <Text style={styles.priceLabel}>{t("Amount Payable")}</Text>
           <Text style={styles.priceText}>₹{totalAmount}</Text>
           {selectedSkill && (
             <Text style={styles.calcText}>
-              (₹{unitPrice} x {workerCount} workers)
-            </Text>
+              (₹{unitPrice} x {workerCount}{t(" workers)")}</Text>
           )}
         </View>
         <TouchableOpacity
           style={styles.payButton}
           onPress={handlePaymentInitiation}
         >
-          <Text style={styles.payButtonText}>PAY NOW</Text>
+          <Text style={styles.payButtonText}>{t("PAY NOW")}</Text>
         </TouchableOpacity>
       </View>
 
@@ -494,7 +489,7 @@ export default function CustomerDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select City</Text>
+              <Text style={styles.modalTitle}>{t("Select City")}</Text>
               <TouchableOpacity onPress={() => setIsCityModalOpen(false)}>
                 <X color="#000" size={24} />
               </TouchableOpacity>
@@ -537,7 +532,7 @@ export default function CustomerDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Nearby Nakas</Text>
+              <Text style={styles.modalTitle}>{t("Select Nearby Nakas")}</Text>
               <TouchableOpacity onPress={() => setIsNakaModalOpen(false)}>
                 <X color="#000" size={24} />
               </TouchableOpacity>
@@ -589,7 +584,7 @@ export default function CustomerDashboard() {
               style={styles.doneBtn}
               onPress={() => setIsNakaModalOpen(false)}
             >
-              <Text style={styles.doneBtnText}>DONE</Text>
+              <Text style={styles.doneBtnText}>{t("DONE")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -604,7 +599,7 @@ export default function CustomerDashboard() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Saved Address</Text>
+              <Text style={styles.modalTitle}>{t("Select Saved Address")}</Text>
               <TouchableOpacity onPress={() => setIsAddressModalOpen(false)}>
                 <X color="#000" size={24} />
               </TouchableOpacity>
@@ -633,14 +628,12 @@ export default function CustomerDashboard() {
                             isSelected && styles.addressModalTitleActive,
                           ]}
                         >
-                          {item.title || "Saved Address"}
+                          {item.title || t("Saved Address")}
                         </Text>
 
                         {item.isDefault ? (
                           <View style={styles.smallDefaultBadge}>
-                            <Text style={styles.smallDefaultBadgeText}>
-                              Default
-                            </Text>
+                            <Text style={styles.smallDefaultBadgeText}>{t("Default")}</Text>
                           </View>
                         ) : null}
                       </View>

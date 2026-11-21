@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/user/login.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -21,6 +22,7 @@ import {
 import { API_URL } from "../../constants/api";
 
 export default function CustomerLoginScreen() {
+  const { t, entityText, refreshTranslations } = useI18n();
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,22 +59,22 @@ export default function CustomerLoginScreen() {
         // Naye user ke liye Name, Phone, Email teeno chahiye
         if (!name.trim() || !phone.trim() || !email.trim()) {
           Alert.alert(
-            "Zaroori Hai",
-            "Kripya Name, Phone aur Email teeno daalein.",
+            t("Zaroori Hai"),
+            t("Kripya Name, Phone aur Email teeno daalein."),
           );
           setIsLoading(false);
           return;
         }
         if (!/^\d{10}$/.test(phone.trim())) {
-          Alert.alert("Invalid Phone", "Please enter a valid 10-digit mobile number.");
+          Alert.alert(t("Invalid Phone"), t("Please enter a valid 10-digit mobile number."));
           return;
         }
         if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
-          Alert.alert("Invalid Email", "Please enter a valid email address.");
+          Alert.alert(t("Invalid Email"), t("Please enter a valid email address."));
           return;
         }
         if (clientType === "Company" && !businessName.trim()) {
-          Alert.alert("Company Details", "Company name is required.");
+          Alert.alert(t("Company Details"), t("Company name is required."));
           return;
         }
         payload = {
@@ -88,8 +90,8 @@ export default function CustomerLoginScreen() {
         // Purane user ke liye sirf loginId (Phone ya Email) chahiye
         if (!loginId) {
           Alert.alert(
-            "Zaroori Hai",
-            "Kripya apna Phone Number ya Email daalein.",
+            t("Zaroori Hai"),
+            t("Kripya apna Phone Number ya Email daalein."),
           );
           setIsLoading(false);
           return;
@@ -107,12 +109,12 @@ export default function CustomerLoginScreen() {
         setCustomerId(response.data.customerId);
         setIsOtpSent(true); // OTP box ko Enable kar dega!
         setOtp("");
-        Alert.alert("OTP Sent", response.data?.message || "OTP bhej diya gaya hai!");
+        Alert.alert(t("OTP Sent"), response.data?.message || "OTP bhej diya gaya hai!");
       }
     } catch (error: any) {
       const errorMsg =
         error.response?.data?.message || "Server se connect nahi ho paya.";
-      Alert.alert("Error", errorMsg);
+      Alert.alert(t("Error"), errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +150,7 @@ export default function CustomerLoginScreen() {
 
   const handleVerifyOtp = async () => {
     if (otp.trim().length !== 6) {
-      Alert.alert("Error", "Sahi OTP daalein.");
+      Alert.alert(t("Error"), t("Sahi OTP daalein."));
       return;
     }
 
@@ -168,12 +170,14 @@ export default function CustomerLoginScreen() {
         );
         // Alert.alert("Welcome!", "Aapka login successful ho gaya hai.");
         await AsyncStorage.setItem("activeRole", "user");
+        // Check Admin translations on every successful Customer login (non-blocking).
+        void refreshTranslations();
         router.replace("/user/dashboard");
       }
     } catch (error: any) {
       const errorMsg =
         error.response?.data?.message || "Galat OTP ya expire ho chuka hai.";
-      Alert.alert("Error", errorMsg);
+      Alert.alert(t("Error"), errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -198,38 +202,38 @@ export default function CustomerLoginScreen() {
           bounces={false}
         >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>E-MAN CUSTOMER</Text>
+        <Text style={styles.headerTitle}>{t("E-MAN CUSTOMER")}</Text>
       </View>
 
       <View style={styles.content}>
         <Text style={styles.titleText}>
-          {isRegisterMode ? "Naya Account Banayein" : "Login Karein"}
+          {isRegisterMode ? t("Naya Account Banayein") : t("Login Karein")}
         </Text>
         <Text style={styles.subText}>
           {isRegisterMode
-            ? "Apni details daalein taaki hum aapka account bana sakein."
-            : "Apna registered Phone Number ya Email daalein."}
+            ? t("Apni details daalein taaki hum aapka account bana sakein.")
+            : t("Apna registered Phone Number ya Email daalein.")}
         </Text>
 
         <View style={styles.form}>
           {/* ----- REGISTER FIELDS (Sirf tab dikhenge jab New Login chuna ho) ----- */}
           {isRegisterMode ? (
             <>
-              <Text style={{ fontWeight: "700", color: "#334155", marginBottom: 8 }}>Registration Type</Text>
+              <Text style={{ fontWeight: "700", color: "#334155", marginBottom: 8 }}>{t("Registration Type")}</Text>
               <View style={{ flexDirection: "row", gap: 12, marginBottom: 15 }}>
                 {(["Individual", "Company"] as const).map((type) => (
                   <TouchableOpacity key={type} disabled={isOtpSent} onPress={() => setClientType(type)}
                     style={{ flex: 1, padding: 12, borderRadius: 12, alignItems: "center", borderWidth: 1,
                       borderColor: clientType === type ? "#059669" : "#CBD5E1", backgroundColor: clientType === type ? "#D1FAE5" : "#FFFFFF" }}>
-                    <Text style={{ color: "#064E3B", fontWeight: "700" }}>{type}</Text>
+                    <Text style={{ color: "#064E3B", fontWeight: "700" }}>{t(type)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.fieldLabel}>Full Name *</Text>
+              <Text style={styles.fieldLabel}>{t("Full Name *")}</Text>
               <TextInput
                 style={styles.input}
                 placeholderTextColor="#6B7280"
-                placeholder="Full Name"
+                placeholder={t("Full Name")}
                 value={name}
                 onChangeText={value => setName(value.toLocaleUpperCase())}
                 autoCapitalize="characters"
@@ -237,31 +241,31 @@ export default function CustomerLoginScreen() {
               />
               {clientType === "Company" && (
                 <>
-                  <Text style={styles.fieldLabel}>Company Name *</Text>
-                  <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="Company Name *" value={businessName}
+                  <Text style={styles.fieldLabel}>{t("Company Name *")}</Text>
+                  <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder={t("Company Name *")} value={businessName}
                     onChangeText={value => setBusinessName(value.toLocaleUpperCase())}
                     autoCapitalize="characters" editable={!isOtpSent} />
-                  <Text style={{ fontWeight: "700", color: "#334155", marginBottom: 8 }}>Industry Type</Text>
+                  <Text style={{ fontWeight: "700", color: "#334155", marginBottom: 8 }}>{t("Industry Type")}</Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7, marginBottom: 15 }}>
                     {["Warehouse", "Construction", "Retail", "Other"].map(type => (
                       <TouchableOpacity key={type} disabled={isOtpSent} onPress={() => setBusinessType(type)}
                         style={{ paddingVertical: 8, paddingHorizontal: 11, borderRadius: 9, borderWidth: 1,
                           borderColor: businessType === type ? "#059669" : "#CBD5E1", backgroundColor: businessType === type ? "#D1FAE5" : "#FFFFFF" }}>
-                        <Text style={{ color: "#111827", fontWeight: "600" }}>{type}</Text>
+                        <Text style={{ color: "#111827", fontWeight: "600" }}>{t(type)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <Text style={styles.fieldLabel}>GST Number (optional)</Text>
-                  <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder="GST Number (optional)" value={gstNumber}
+                  <Text style={styles.fieldLabel}>{t("GST Number (optional)")}</Text>
+                  <TextInput style={styles.input} placeholderTextColor="#6B7280" placeholder={t("GST Number (optional)")} value={gstNumber}
                     onChangeText={value => setGstNumber(value.toUpperCase())}
                     maxLength={15} autoCapitalize="characters" editable={!isOtpSent} />
                 </>
               )}
-              <Text style={styles.fieldLabel}>Phone Number *</Text>
+              <Text style={styles.fieldLabel}>{t("Phone Number *")}</Text>
               <TextInput
                 style={styles.input}
                 placeholderTextColor="#6B7280"
-                placeholder="Phone Number"
+                placeholder={t("Phone Number")}
                 keyboardType="numeric"
                 maxLength={10}
                 value={phone}
@@ -269,11 +273,11 @@ export default function CustomerLoginScreen() {
                 editable={!isOtpSent}
                 onFocus={keepFormVisible}
               />
-              <Text style={styles.fieldLabel}>Email Address *</Text>
+              <Text style={styles.fieldLabel}>{t("Email Address *")}</Text>
               <TextInput
                 style={styles.input}
                 placeholderTextColor="#6B7280"
-                placeholder="Email Address"
+                placeholder={t("Email Address")}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
@@ -285,11 +289,11 @@ export default function CustomerLoginScreen() {
           ) : (
             /* ----- LOGIN FIELD (Default) ----- */
             <>
-            <Text style={styles.fieldLabel}>Registered Phone Number or Email</Text>
+            <Text style={styles.fieldLabel}>{t("Registered Phone Number or Email")}</Text>
             <TextInput
               style={styles.input}
               placeholderTextColor="#6B7280"
-              placeholder="Phone Number / Email"
+              placeholder={t("Phone Number / Email")}
               autoCapitalize="none"
               value={loginId}
               onChangeText={setLoginId}
@@ -300,14 +304,14 @@ export default function CustomerLoginScreen() {
           )}
 
           {/* ----- OTP FIELD (Shuru me disabled rahega) ----- */}
-          <Text style={styles.fieldLabel}>OTP (6 digits)</Text>
+          <Text style={styles.fieldLabel}>{t("OTP (6 digits)")}</Text>
           <TextInput
             style={[
               styles.input,
               styles.otpInput,
               !isOtpSent && styles.disabledInput, // Agar OTP nahi bheja toh Grey dikhega
             ]}
-            placeholder="OTP daalein"
+            placeholder={t("OTP daalein")}
             placeholderTextColor="#6B7280"
             keyboardType="numeric"
             maxLength={6}
@@ -332,7 +336,7 @@ export default function CustomerLoginScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.buttonText}>
-                {isOtpSent ? "Verify & Login" : "Send OTP"}
+                {isOtpSent ? t("Verify & Login") : t("Send OTP")}
               </Text>
             )}
           </TouchableOpacity>
@@ -340,10 +344,10 @@ export default function CustomerLoginScreen() {
           {isOtpSent && (
             <View style={styles.otpActions}>
               <TouchableOpacity disabled={isLoading} onPress={handleSendOtp}>
-                <Text style={styles.otpActionText}>Resend OTP</Text>
+                <Text style={styles.otpActionText}>{t("Resend OTP")}</Text>
               </TouchableOpacity>
               <TouchableOpacity disabled={isLoading} onPress={() => { setIsOtpSent(false); setOtp(""); setCustomerId(null); }}>
-                <Text style={styles.otpActionText}>Change Email / Phone</Text>
+                <Text style={styles.otpActionText}>{t("Change Email / Phone")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -361,8 +365,8 @@ export default function CustomerLoginScreen() {
             >
               <Text style={styles.toggleText}>
                 {isRegisterMode
-                  ? "Pehle se account hai? Login karein"
-                  : "Naya user? Create Account (New Login)"}
+                  ? t("Pehle se account hai? Login karein")
+                  : t("Naya user? Create Account (New Login)")}
               </Text>
             </TouchableOpacity>
           )}

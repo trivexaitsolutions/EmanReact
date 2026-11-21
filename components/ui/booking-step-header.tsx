@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import { router } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import React from "react";
@@ -12,6 +13,7 @@ export default function BookingStepHeader({
   step,
   disabled = false,
 }: BookingStepHeaderProps) {
+  const { t, entityText } = useI18n();
   const circleStyle = (circle: number) =>
     circle === step ? styles.circleActive : styles.circleInactive;
 
@@ -29,8 +31,8 @@ export default function BookingStepHeader({
           <ArrowLeft size={23} color="#16863A" strokeWidth={2.4} />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Book a Worker</Text>
-        <Text style={styles.stepText}>Step {step} of 3</Text>
+        <Text style={styles.title}>{t("Book a Worker")}</Text>
+        <Text style={styles.stepText}>{t("Step ")}{step}{t(" of 3")}</Text>
       </View>
 
       <View style={styles.progressContainer}>

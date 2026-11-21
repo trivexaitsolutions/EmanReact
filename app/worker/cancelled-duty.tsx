@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { XCircle } from "lucide-react-native";
 import React from "react";
@@ -10,6 +11,7 @@ import {
 } from "react-native";
 
 export default function CancelledDuty() {
+  const { t, entityText } = useI18n();
   const { reason, amount, type } = useLocalSearchParams();
 
   const isWholeBooking = type === "BOOKING_CANCELLED_BY_CLIENT";
@@ -24,23 +26,23 @@ export default function CancelledDuty() {
         </View>
 
         <Text style={styles.title}>
-          {isWholeBooking ? "Booking Cancelled" : "Duty Cancelled"}
+          {t(isWholeBooking ? "Booking Cancelled" : "Duty Cancelled")}
         </Text>
 
         <Text style={styles.subtitle}>
-          {isWholeBooking
+          {t(isWholeBooking
             ? "Customer ne poori booking cancel kar di hai."
-            : "Customer ne aapki duty cancel kar di hai."}
+            : "Customer ne aapki duty cancel kar di hai.")}
         </Text>
 
         <View style={styles.infoBox}>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Reason</Text>
+            <Text style={styles.infoLabel}>{t("Reason")}</Text>
             <Text style={styles.infoValue}>{reason || "-"}</Text>
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Amount</Text>
+            <Text style={styles.infoLabel}>{t("Amount")}</Text>
             <Text style={styles.amountText}>₹{amount || 0}</Text>
           </View>
         </View>
@@ -49,14 +51,14 @@ export default function CancelledDuty() {
           style={styles.primaryBtn}
           onPress={() => router.replace("/worker/dashboard")}
         >
-          <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
+          <Text style={styles.primaryBtnText}>{t("Go to Dashboard")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryBtn}
           onPress={() => router.replace("/worker/available")}
         >
-          <Text style={styles.secondaryBtnText}>Go to Availability</Text>
+          <Text style={styles.secondaryBtnText}>{t("Go to Availability")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

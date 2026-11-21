@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { ResizeMode, Video } from "expo-av";
@@ -97,6 +98,7 @@ const resolveMediaUrl = (url?: string | null) => {
 };
 
 export default function BookWorkerSelectWorkers() {
+  const { t, entityText } = useI18n();
   const { height: windowHeight } = useWindowDimensions();
   const videoModalHeight = Math.min(Math.max(windowHeight * 0.58, 360), 520);
 
@@ -127,8 +129,8 @@ export default function BookWorkerSelectWorkers() {
 
       if (!savedDraft) {
         Alert.alert(
-          "Booking Details Missing",
-          "Please start your booking again.",
+          t("Booking Details Missing"),
+          t("Please start your booking again."),
         );
         router.replace("/user/book-worker-step1");
         return;
@@ -145,8 +147,8 @@ export default function BookWorkerSelectWorkers() {
         !Number.isFinite(workLongitude)
       ) {
         Alert.alert(
-          "Booking Details Missing",
-          "Please select skill and confirm work location again.",
+          t("Booking Details Missing"),
+          t("Please select skill and confirm work location again."),
         );
         router.replace("/user/book-worker-step1");
         return;
@@ -230,11 +232,11 @@ export default function BookWorkerSelectWorkers() {
         );
 
         Alert.alert(
-          "Booking Mode Changed",
-          "Admin ne automatic worker assignment enable kiya hai. Booking automatically continue hogi.",
+          t("Booking Mode Changed"),
+          t("Admin ne automatic worker assignment enable kiya hai. Booking automatically continue hogi."),
           [
             {
-              text: "Continue",
+              text: t("Continue"),
               onPress: () => router.replace("/user/book-worker-step3"),
             },
           ],
@@ -243,7 +245,7 @@ export default function BookWorkerSelectWorkers() {
       }
 
       Alert.alert(
-        "Workers Not Available",
+        t("Workers Not Available"),
         error?.response?.data?.message ||
           error?.message ||
           "Available workers load nahi ho paye.",
@@ -269,7 +271,7 @@ export default function BookWorkerSelectWorkers() {
 
     if (selectedWorkerIds.length >= requiredCount) {
       Alert.alert(
-        "Selection Complete",
+        t("Selection Complete"),
         `You can select only ${requiredCount} worker${
           requiredCount === 1 ? "" : "s"
         }.`,
@@ -282,7 +284,7 @@ export default function BookWorkerSelectWorkers() {
 
   const openWorkerVideo = (worker: WorkerOption) => {
     if (!worker.videoUrl) {
-      Alert.alert("Video Not Available", "Is worker ka video abhi available nahi hai.");
+      Alert.alert(t("Video Not Available"), t("Is worker ka video abhi available nahi hai."));
       return;
     }
 
@@ -296,7 +298,7 @@ export default function BookWorkerSelectWorkers() {
 
     if (selectedWorkerIds.length !== requiredCount) {
       Alert.alert(
-        "Select Workers",
+        t("Select Workers"),
         `Please select exactly ${requiredCount} worker${
           requiredCount === 1 ? "" : "s"
         } to continue.`,
@@ -326,7 +328,7 @@ export default function BookWorkerSelectWorkers() {
       router.push("/user/book-worker-step3");
     } catch (error) {
       console.log("Selected workers save error:", error);
-      Alert.alert("Error", "Selected workers save nahi ho paye.");
+      Alert.alert(t("Error"), t("Selected workers save nahi ho paye."));
     } finally {
       setIsContinuing(false);
     }
@@ -342,7 +344,7 @@ export default function BookWorkerSelectWorkers() {
       <SafeAreaView style={styles.loaderContainer}>
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color="#16863A" />
-        <Text style={styles.loaderText}>Finding available workers...</Text>
+        <Text style={styles.loaderText}>{t("Finding available workers...")}</Text>
       </SafeAreaView>
     );
   }
@@ -357,7 +359,7 @@ export default function BookWorkerSelectWorkers() {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Select Workers</Text>
+          <Text style={styles.headerTitle}>{t("Select Workers")}</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
             {draft.skillName || "Worker"} • {durationText}
           </Text>
@@ -379,22 +381,20 @@ export default function BookWorkerSelectWorkers() {
       <View style={styles.summaryCard}>
         <View style={styles.summaryTopRow}>
           <View>
-            <Text style={styles.summaryLabel}>Workers required</Text>
+            <Text style={styles.summaryLabel}>{t("Workers required")}</Text>
             <Text style={styles.summaryValue}>{requiredCount}</Text>
           </View>
 
           <View style={styles.selectedBadge}>
             <Text style={styles.selectedBadgeText}>
-              {selectedWorkerIds.length}/{requiredCount} selected
-            </Text>
+              {selectedWorkerIds.length}/{requiredCount}{t(" selected")}</Text>
           </View>
         </View>
 
         <View style={styles.summaryInfoRow}>
           <MapPin size={16} color="#5B6470" />
           <Text style={styles.summaryInfoText} numberOfLines={1}>
-            {nearbyNakaCount} nearby Naka{nearbyNakaCount === 1 ? "" : "s"} • {formatRadius(draft)} service area
-          </Text>
+            {nearbyNakaCount}{t(" nearby Naka")}{nearbyNakaCount === 1 ? "" : "s"} • {formatRadius(draft)}{t(" service area")}</Text>
         </View>
       </View>
 
@@ -406,15 +406,13 @@ export default function BookWorkerSelectWorkers() {
         {workers.length === 0 ? (
           <View style={styles.emptyCard}>
             <User size={42} color="#A3A3A3" />
-            <Text style={styles.emptyTitle}>No workers available</Text>
-            <Text style={styles.emptyText}>
-              Is work location ke {formatRadius(draft)} area me is skill ke available workers nahi mile.
-            </Text>
+            <Text style={styles.emptyTitle}>{t("No workers available")}</Text>
+            <Text style={styles.emptyText}>{t("Is work location ke ")}{formatRadius(draft)}{t(" area me is skill ke available workers nahi mile.")}</Text>
             <TouchableOpacity
               style={styles.changeNakaButton}
               onPress={() => router.back()}
             >
-              <Text style={styles.changeNakaButtonText}>Change Work Location</Text>
+              <Text style={styles.changeNakaButtonText}>{t("Change Work Location")}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -453,21 +451,20 @@ export default function BookWorkerSelectWorkers() {
                   <View style={styles.infoRow}>
                     <BriefcaseBusiness size={15} color="#6B7280" />
                     <Text style={styles.infoText} numberOfLines={1}>
-                      {worker.qualification || draft.skillName || "Skilled Worker"}
+                      {worker.qualification || draft.skillName || t("Skilled Worker")}
                     </Text>
                   </View>
 
                   <View style={styles.infoRow}>
                     <MapPin size={15} color="#6B7280" />
                     <Text style={styles.infoText} numberOfLines={1}>
-                      {nakaText || "Selected Naka"}
+                      {nakaText || t("Selected Naka")}
                     </Text>
                   </View>
 
                   <View style={styles.durationBadge}>
                     <Text style={styles.durationBadgeText}>
-                      {durationText} Work
-                    </Text>
+                      {durationText}{t(" Work")}</Text>
                   </View>
 
                   {Number.isFinite(Number(worker.effectiveRate)) && worker.effectiveRate != null ? (
@@ -476,16 +473,15 @@ export default function BookWorkerSelectWorkers() {
                         ₹{Number(worker.effectiveRate).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                       </Text>
                       <Text style={styles.workerPoolLabel}>
-                        {durationText} price · Pool {Number(worker.poolNumber || 1)}
+                        {durationText}{t(" price · Pool ")}{Number(worker.poolNumber || 1)}
                       </Text>
                     </View>
                   ) : (
-                    <Text style={styles.workerPriceUnavailable}>Rate unavailable</Text>
+                    <Text style={styles.workerPriceUnavailable}>{t("Rate unavailable")}</Text>
                   )}
 
                   <Text style={styles.ratingCountText}>
-                    {Number(worker.ratingCount || 0)} rating
-                    {Number(worker.ratingCount || 0) === 1 ? "" : "s"}
+                    {Number(worker.ratingCount || 0)}{t(" rating")}{Number(worker.ratingCount || 0) === 1 ? "" : "s"}
                   </Text>
 
                   <TouchableOpacity
@@ -509,7 +505,7 @@ export default function BookWorkerSelectWorkers() {
                         !worker.videoUrl && styles.videoButtonTextDisabled,
                       ]}
                     >
-                      {worker.videoUrl ? "View Video" : "Video Not Available"}
+                      {t(worker.videoUrl ? "View Video" : "Video Not Available")}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -552,7 +548,7 @@ export default function BookWorkerSelectWorkers() {
           {isContinuing ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.nextButtonText}>Continue to Address</Text>
+            <Text style={styles.nextButtonText}>{t("Continue to Address")}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -567,7 +563,7 @@ export default function BookWorkerSelectWorkers() {
           <View style={styles.videoModalCard}>
             <View style={styles.videoModalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.videoModalTitle}>Worker Video</Text>
+                <Text style={styles.videoModalTitle}>{t("Worker Video")}</Text>
                 <Text style={styles.videoModalName} numberOfLines={1}>
                   {videoWorker?.name || "Worker"}
                 </Text>

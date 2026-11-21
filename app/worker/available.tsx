@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack, useFocusEffect } from "expo-router";
@@ -17,6 +18,7 @@ import {
 import { API_URL } from "../../constants/api";
 
 export default function WorkerAvailable() {
+  const { t, entityText } = useI18n();
   const { width } = useWindowDimensions();
   const isNarrow = width < 375;
   const remainingSecondsRef = useRef<number | null>(null);
@@ -117,7 +119,7 @@ export default function WorkerAvailable() {
       }
     } catch (error) {
       console.log("Initial data load error:", error);
-      Alert.alert("Error", "Pool data load nahi ho paya.");
+      Alert.alert(t("Error"), t("Pool data load nahi ho paya."));
     } finally {
       setIsLoadingPool(false);
     }
@@ -148,14 +150,14 @@ export default function WorkerAvailable() {
       }
 
       Alert.alert(
-        "Pool Ended",
+        t("Pool Ended"),
         response.data.message || "Aap currently available nahi ho.",
       );
       router.replace("/worker/dashboard");
     } catch (error: any) {
       console.log("Pool status error:", error);
       Alert.alert(
-        "Error",
+        t("Error"),
         error?.response?.data?.message || "Pool status fetch nahi ho paya.",
       );
       router.replace("/worker/dashboard");
@@ -216,17 +218,17 @@ export default function WorkerAvailable() {
       router.replace("/worker/dashboard");
     } catch (error) {
       console.log("Stop availability error:", error);
-      Alert.alert("Error", "Status update nahi ho paya.");
+      Alert.alert(t("Error"), t("Status update nahi ho paya."));
     } finally {
       setIsStopping(false);
     }
   };
 
   const handleStopAvailability = () => {
-    Alert.alert("Go Offline?", "Aap pool se bahar nikalna chahte ho?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("Go Offline?"), t("Aap pool se bahar nikalna chahte ho?"), [
+      { text: t("Cancel"), style: "cancel" },
       {
-        text: "Go Offline",
+        text: t("Go Offline"),
         style: "destructive",
         onPress: () => stopAvailability(false),
       },
@@ -258,7 +260,7 @@ export default function WorkerAvailable() {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color="#087C49" />
-        <Text style={styles.loaderText}>Loading pool status...</Text>
+        <Text style={styles.loaderText}>{t("Loading pool status...")}</Text>
       </View>
     );
   }
@@ -270,40 +272,40 @@ export default function WorkerAvailable() {
   const isShortWork = poolInfo?.availabilityType === "SHORT_PERIOD";
   const availabilityHours = Math.max(0, Number(poolInfo?.availabilityHours || 0));
   const availabilityTypeLabel = isShortWork
-    ? `${availabilityHours} Hours Work`
-    : "Full Day Work";
+    ? `${availabilityHours} ${t("Hours Work")}`
+    : t("Full Day Work");
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
 
       <View style={styles.topNav}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Worker Dashboard"
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t("Back to Worker Dashboard")}
           onPress={() => router.replace("/worker/dashboard")}
           style={{ padding: 8, marginLeft: -8 }}>
           <ArrowLeft color="#087C49" size={24} strokeWidth={2.5} />
         </TouchableOpacity>
         <View>
-          <Text style={styles.navEyebrow}>WORKER</Text>
-          <Text style={styles.navTitle}>Available</Text>
+          <Text style={styles.navEyebrow}>{t("WORKER")}</Text>
+          <Text style={styles.navTitle}>{t("Available")}</Text>
         </View>
 
         <View style={styles.poolBadge}>
           <View style={styles.poolDot} />
-          <Text style={styles.poolBadgeText}>In Pool</Text>
+          <Text style={styles.poolBadgeText}>{t("In Pool")}</Text>
         </View>
       </View>
 
       <View style={styles.content}>
         <View style={styles.banner}>
-          <Text style={styles.bannerHello}>Hi {firstName}</Text>
-          <Text style={styles.bannerTitle}>YOU ARE IN POOL</Text>
-          <Text style={styles.bannerSub}>Stay ready for your next job</Text>
+          <Text style={styles.bannerHello}>{t("Hi ")}{firstName}</Text>
+          <Text style={styles.bannerTitle}>{t("YOU ARE IN POOL")}</Text>
+          <Text style={styles.bannerSub}>{t("Stay ready for your next job")}</Text>
         </View>
 
         <View style={styles.availabilityCard}>
           <View>
-            <Text style={styles.availabilityLabel}>WORK PREFERENCE</Text>
+            <Text style={styles.availabilityLabel}>{t("WORK PREFERENCE")}</Text>
             <Text style={styles.availabilityValue}>{availabilityTypeLabel}</Text>
           </View>
 
@@ -311,7 +313,7 @@ export default function WorkerAvailable() {
             <View style={styles.hoursBadge}>
               <Clock3 color="#087C49" size={18} strokeWidth={2.5} />
               <Text style={styles.hoursBadgeText}>
-                {availabilityHours} {availabilityHours === 1 ? "Hour" : "Hours"}
+                {availabilityHours} {t(availabilityHours === 1 ? "Hour" : "Hours")}
               </Text>
             </View>
           )}
@@ -323,8 +325,8 @@ export default function WorkerAvailable() {
               <UsersRound color="#087C49" size={24} strokeWidth={2.5} />
             </View>
             <View style={styles.timerHeaderText}>
-              <Text style={styles.timerLabelTop}>POOL TIME</Text>
-              <Text style={styles.timerHint}>{poolInfo?.poolTimerMode === "FIRST_POOL" ? "Since first pool started" : poolInfo?.poolTimerMode === "CURRENT_POOL" ? "Since current scheduled pool started" : "Time since you became available"}</Text>
+              <Text style={styles.timerLabelTop}>{t("POOL TIME")}</Text>
+              <Text style={styles.timerHint}>{t(poolInfo?.poolTimerMode === "FIRST_POOL" ? "Since first pool started" : poolInfo?.poolTimerMode === "CURRENT_POOL" ? "Since current scheduled pool started" : "Time since you became available")}</Text>
             </View>
           </View>
 
@@ -338,11 +340,11 @@ export default function WorkerAvailable() {
             </Text>
 
             <View style={styles.timerUnits}>
-              <Text style={styles.timerUnit}>HH</Text>
+              <Text style={styles.timerUnit}>{t("HH")}</Text>
               <Text style={styles.timerDivider}>|</Text>
-              <Text style={styles.timerUnit}>MM</Text>
+              <Text style={styles.timerUnit}>{t("MM")}</Text>
               <Text style={styles.timerDivider}>|</Text>
-              <Text style={styles.timerUnit}>SS</Text>
+              <Text style={styles.timerUnit}>{t("SS")}</Text>
             </View>
           </View>
 
@@ -351,7 +353,7 @@ export default function WorkerAvailable() {
               <Clock3 color="#087C49" size={18} strokeWidth={2.5} />
             </View>
             <View style={styles.startedTextWrap}>
-              <Text style={styles.startedLabel}>Timer starts from</Text>
+              <Text style={styles.startedLabel}>{t("Timer starts from")}</Text>
               <Text style={styles.startedValue}>
                 {formatDisplayTime(poolInfo?.timerBaseTime || poolInfo?.availabilityStart)}
               </Text>
@@ -370,7 +372,7 @@ export default function WorkerAvailable() {
           ) : (
             <View style={styles.offlineButtonContent}>
               <Power color="#FFFFFF" size={22} strokeWidth={2.5} />
-              <Text style={styles.offlineButtonText}>Go Offline</Text>
+              <Text style={styles.offlineButtonText}>{t("Go Offline")}</Text>
             </View>
           )}
         </TouchableOpacity>

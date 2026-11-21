@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import * as Location from "expo-location";
@@ -66,6 +67,7 @@ const formatDistance = (naka: NakaOption) => {
 };
 
 export default function BookWorkerStep2() {
+  const { t, entityText } = useI18n();
   const nearbyRequestRef = useRef(0);
   const addressRequestRef = useRef(0);
 
@@ -182,7 +184,7 @@ export default function BookWorkerStep2() {
       setSystemNakas([]);
 
       Alert.alert(
-        "Nearby Nakas",
+        t("Nearby Nakas"),
         error?.response?.data?.message ||
           "Nearby Nakas load nahi ho paye. Please try again.",
       );
@@ -251,8 +253,8 @@ export default function BookWorkerStep2() {
       if (permission.status !== "granted") {
         if (showAlert) {
           Alert.alert(
-            "Location Permission Required",
-            "Please allow location permission and try again.",
+            t("Location Permission Required"),
+            t("Please allow location permission and try again."),
           );
         }
         return;
@@ -270,7 +272,7 @@ export default function BookWorkerStep2() {
       console.log("Current location error:", error);
 
       if (showAlert) {
-        Alert.alert("Location Error", "Current location fetch nahi ho payi.");
+        Alert.alert(t("Location Error"), t("Current location fetch nahi ho payi."));
       }
     } finally {
       setIsLocating(false);
@@ -279,13 +281,13 @@ export default function BookWorkerStep2() {
 
   const handleContinue = async () => {
     if (!workLocation) {
-      Alert.alert("Work Location", "Please work location confirm karein.");
+      Alert.alert(t("Work Location"), t("Please work location confirm karein."));
       return;
     }
 
     if (systemNakas.length === 0) {
       Alert.alert(
-        "Service Unavailable",
+        t("Service Unavailable"),
         `Is location ke ${mapSettings.radiusMeters / 1000} km radius me koi verified Naka nahi mila.`,
       );
       return;
@@ -323,7 +325,7 @@ export default function BookWorkerStep2() {
     } catch (error: any) {
       console.log("Work location continue error:", error?.response?.data || error);
       Alert.alert(
-        "Unable to Continue",
+        t("Unable to Continue"),
         error?.response?.data?.message || "Please try again.",
       );
     } finally {
@@ -341,7 +343,7 @@ export default function BookWorkerStep2() {
 
       <View style={styles.content}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nearby Nakas</Text>
+          <Text style={styles.sectionTitle}>{t("Nearby Nakas")}</Text>
           <TouchableOpacity
             style={styles.locateButton}
             onPress={() => void fetchCurrentLocation(true)}
@@ -367,7 +369,7 @@ export default function BookWorkerStep2() {
                   <MapPin size={22} color="#16863A" />
                 </View>
                 <Text style={styles.nakaName} numberOfLines={2}>
-                  {naka.name}
+                  {entityText("NAKA", naka)}
                 </Text>
                 <Text style={styles.nakaDistance}>{formatDistance(naka)}</Text>
               </View>
@@ -382,10 +384,9 @@ export default function BookWorkerStep2() {
                 <View style={styles.nakaIconWrap}>
                   <Grid2X2 size={23} color="#16863A" />
                 </View>
-                <Text style={styles.viewAllText}>View All</Text>
+                <Text style={styles.viewAllText}>{t("View All")}</Text>
                 <Text style={styles.nakaDistance}>
-                  +{nearbyNakas.length - 3} more
-                </Text>
+                  +{nearbyNakas.length - 3}{t(" more")}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -396,7 +397,7 @@ export default function BookWorkerStep2() {
             onPress={() => void fetchCurrentLocation(true)}
           >
             <MapPin size={24} color="#64748B" />
-            <Text style={styles.emptyText}>No nearby Nakas. Tap to retry.</Text>
+            <Text style={styles.emptyText}>{t("No nearby Nakas. Tap to retry.")}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -423,7 +424,7 @@ export default function BookWorkerStep2() {
           {isContinuing ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.continueButtonText}>Confirm & Continue</Text>
+            <Text style={styles.continueButtonText}>{t("Confirm & Continue")}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -438,7 +439,7 @@ export default function BookWorkerStep2() {
         <View style={styles.modalOverlay}>
           <View style={styles.nakaModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nearby Nakas</Text>
+              <Text style={styles.modalTitle}>{t("Nearby Nakas")}</Text>
               <TouchableOpacity
                 style={styles.modalClose}
                 onPress={() => setNakaModalVisible(false)}
@@ -460,10 +461,10 @@ export default function BookWorkerStep2() {
                     </Text>
                   </View>
                   <Text style={styles.modalNakaName} numberOfLines={2}>
-                    {naka.name}
+                    {entityText("NAKA", naka)}
                   </Text>
                   <Text style={styles.modalNakaMeta} numberOfLines={1}>
-                    {naka.city?.name || naka.landmark || "Verified Naka"}
+                    {naka.city?.id ? entityText("CITY", naka.city) : (naka.city?.name || entityText("NAKA", naka, "landmark") || t("Verified Naka"))}
                   </Text>
                 </View>
               ))}
@@ -473,7 +474,7 @@ export default function BookWorkerStep2() {
               style={styles.modalDoneButton}
               onPress={() => setNakaModalVisible(false)}
             >
-              <Text style={styles.modalDoneText}>Done</Text>
+              <Text style={styles.modalDoneText}>{t("Done")}</Text>
             </TouchableOpacity>
           </View>
         </View>

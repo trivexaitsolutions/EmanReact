@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack } from "expo-router";
@@ -20,6 +21,7 @@ const wait = (ms: number) =>
   });
 
 export default function PaymentReturnScreen() {
+  const { t, entityText } = useI18n();
   useEffect(() => {
     let cancelled = false;
 
@@ -90,7 +92,7 @@ export default function PaymentReturnScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.content}>
         <ActivityIndicator size="large" color="#16863A" />
-        <Text style={styles.text}>Confirming payment...</Text>
+        <Text style={styles.text}>{t("Confirming payment...")}</Text>
       </View>
     </SafeAreaView>
   );

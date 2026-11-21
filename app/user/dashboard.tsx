@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/user/dashboard.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -26,6 +27,7 @@ import {
   View,
 } from "react-native";
 import { API_URL } from "../../constants/api";
+import LanguageQuickSwitcher from "../../components/language-quick-switcher";
 
 const parseIdList = (value: any): number[] => {
   try {
@@ -112,6 +114,7 @@ const getBookingStatusSubtitle = (booking: any) => {
 };
 
 export default function CustomerDashboard() {
+  const { t, entityText } = useI18n();
   const [userData, setUserData] = useState<any>(null);
   const [activeBooking, setActiveBooking] = useState<any>(null);
   const [recentBookings, setRecentBookings] = useState([]);
@@ -203,17 +206,17 @@ export default function CustomerDashboard() {
         {/* GREEN HEADER SECTION */}
         <View style={styles.headerBackground}>
           <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greetingText}>
-                Hi, {userData?.name || "User"}! 👋
+            <View style={{ flex: 1, minWidth: 0, paddingRight: 6 }}>
+              <Text style={styles.greetingText} numberOfLines={1} adjustsFontSizeToFit>{t("Hi, ")}{userData?.name || "User"}! 👋
               </Text>
               <View style={styles.locationRow}>
                 <MapPin color="#fff" size={14} />
-                <Text style={styles.locationText}>Dombivli, MH</Text>
+                <Text style={styles.locationText}>{t("Location")}</Text>
               </View>
             </View>
             <View style={styles.headerIcons}>
-              <View style={styles.profileCircle}>
+              <LanguageQuickSwitcher onDark />
+              <View style={[styles.profileCircle, { marginLeft: 6 }]}>
                 <Text style={styles.profileInitial}>
                   {userData?.name ? userData.name.charAt(0).toUpperCase() : "S"}
                 </Text>
@@ -233,15 +236,14 @@ export default function CustomerDashboard() {
               <View style={styles.activeBannerRow}>
                 <Clock color="#10B981" size={24} />
                 <View style={{ marginLeft: 15, flex: 1 }}>
-                  <Text style={styles.activeBannerTitle}>
-                    Booking #{activeBooking.id} · {getBookingStatusLabel(activeBooking)}
+                  <Text style={styles.activeBannerTitle}>{t("Booking #")}{activeBooking.id} · {t(getBookingStatusLabel(activeBooking))}
                   </Text>
                   <Text style={styles.activeBannerSub}>
-                    {getBookingStatusSubtitle(activeBooking)}
+                    {t(getBookingStatusSubtitle(activeBooking))}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.trackStatusText}>Track Status</Text>
+              <Text style={styles.trackStatusText}>{t("Track Status")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -251,15 +253,13 @@ export default function CustomerDashboard() {
           {/* CREATE BOOKING CARD */}
           <View style={styles.bookCard}>
             <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={styles.bookCardTitle}>Book New Workers</Text>
-              <Text style={styles.bookCardSub}>
-                Find skilled help instantly for your needs.
-              </Text>
+              <Text style={styles.bookCardTitle}>{t("Book New Workers")}</Text>
+              <Text style={styles.bookCardSub}>{t("Find skilled help instantly for your needs.")}</Text>
               <TouchableOpacity
                 style={styles.getStartedBtn}
                 onPress={startNewBooking}
               >
-                <Text style={styles.getStartedText}>Get Started</Text>
+                <Text style={styles.getStartedText}>{t("Get Started")}</Text>
                 <ArrowRight color="#fff" size={16} style={{ marginLeft: 5 }} />
               </TouchableOpacity>
             </View>
@@ -276,41 +276,41 @@ export default function CustomerDashboard() {
             >
               <History color="#10B981" size={24} />
               <View style={{ marginLeft: 12 }}>
-                <Text style={styles.gridItemTitle}>History</Text>
-                <Text style={styles.gridItemSub}>Past Bookings</Text>
+                <Text style={styles.gridItemTitle}>{t("History")}</Text>
+                <Text style={styles.gridItemSub}>{t("Past Bookings")}</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.gridItem}>
               <Wallet color="#10B981" size={24} />
               <View style={{ marginLeft: 12 }}>
-                <Text style={styles.gridItemTitle}>Wallet</Text>
-                <Text style={styles.gridItemSub}>Payments</Text>
+                <Text style={styles.gridItemTitle}>{t("Wallet")}</Text>
+                <Text style={styles.gridItemSub}>{t("Payments")}</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.gridItem}>
               <PhoneCall color="#10B981" size={24} />
               <View style={{ marginLeft: 12 }}>
-                <Text style={styles.gridItemTitle}>Support</Text>
-                <Text style={styles.gridItemSub}>Help & Contact</Text>
+                <Text style={styles.gridItemTitle}>{t("Support")}</Text>
+                <Text style={styles.gridItemSub}>{t("Help & Contact")}</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.gridItem}>
               <Settings color="#10B981" size={24} />
               <View style={{ marginLeft: 12 }}>
-                <Text style={styles.gridItemTitle}>Settings</Text>
-                <Text style={styles.gridItemSub}>Preferences</Text>
+                <Text style={styles.gridItemTitle}>{t("Settings")}</Text>
+                <Text style={styles.gridItemSub}>{t("Preferences")}</Text>
               </View>
             </TouchableOpacity>
           </View>
 
           {/* RECENT BOOKINGS */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Recent Bookings</Text>
+            <Text style={styles.sectionTitle}>{t("Recent Bookings")}</Text>
             <TouchableOpacity onPress={() => router.push("/user/history")}>
-              <Text style={styles.viewAllText}>View All</Text>
+              <Text style={styles.viewAllText}>{t("View All")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -325,7 +325,7 @@ export default function CustomerDashboard() {
                 </View>
                 <View style={{ flex: 1, marginLeft: 15 }}>
                   <Text style={styles.recentCardTitle}>
-                    {booking.naka?.name || "General Booking"}
+                    {booking.naka?.name || t("General Booking")}
                   </Text>
                   <View
                     style={{
@@ -345,15 +345,13 @@ export default function CustomerDashboard() {
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.statusTextDone}>Completed</Text>
+                <Text style={styles.statusTextDone}>{t("Completed")}</Text>
               </View>
             ))
           ) : (
             <Text
               style={{ textAlign: "center", color: "#9CA3AF", marginTop: 20 }}
-            >
-              No recent bookings found.
-            </Text>
+            >{t("No recent bookings found.")}</Text>
           )}
         </View>
       </ScrollView>
@@ -362,7 +360,7 @@ export default function CustomerDashboard() {
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem}>
           <Home color="#10B981" size={24} />
-          <Text style={[styles.navText, { color: "#10B981" }]}>Home</Text>
+          <Text style={[styles.navText, { color: "#10B981" }]}>{t("Home")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -370,7 +368,7 @@ export default function CustomerDashboard() {
           onPress={startNewBooking}
         >
           <PlusSquare color="#9CA3AF" size={24} />
-          <Text style={styles.navText}>Book</Text>
+          <Text style={styles.navText}>{t("Book")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -378,7 +376,7 @@ export default function CustomerDashboard() {
           onPress={() => router.push("/user/history")}
         >
           <History color="#9CA3AF" size={24} />
-          <Text style={styles.navText}>History</Text>
+          <Text style={styles.navText}>{t("History")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -386,7 +384,7 @@ export default function CustomerDashboard() {
           onPress={() => router.push("/user/profile")}
         >
           <User color="#9CA3AF" size={24} />
-          <Text style={styles.navText}>Profile</Text>
+          <Text style={styles.navText}>{t("Profile")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

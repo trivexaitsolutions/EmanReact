@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Stack, router, useFocusEffect } from "expo-router";
@@ -27,6 +28,7 @@ import WorkerBottomNav from "../../components/worker-bottom-nav";
 import { API_URL } from "../../constants/api";
 
 export default function WorkerProfile() {
+  const { t, entityText, language, languages } = useI18n();
   const [profile, setProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,7 +45,7 @@ export default function WorkerProfile() {
       if (response.data.success) setProfile(response.data.worker);
     } catch (error) {
       console.log("Worker profile fetch error:", error);
-      Alert.alert("Unable to load", "Profile load nahi ho paya.");
+      Alert.alert(t("Unable to load"), t("Profile load nahi ho paya."));
     } finally {
       setIsLoading(false);
     }
@@ -73,17 +75,19 @@ export default function WorkerProfile() {
       console.log("Support contact error:", error);
     }
 
-    Alert.alert("Contact Us", "Support contact abhi available nahi hai.");
+    Alert.alert(t("Contact Us"), t("Support contact abhi available nahi hai."));
   };
 
   const logout = () => {
-    Alert.alert("Logout", "Worker account se logout karein?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("Logout"), t("Worker account se logout karein?"), [
+      { text: t("Cancel"), style: "cancel" },
       {
-        text: "Logout",
+        text: t("Logout"),
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.clear();
+          await AsyncStorage.multiRemove([
+            "workerSession", "customerSession", "activeRole", "newBookingDraft",
+          ]);
           router.replace("/");
         },
       },
@@ -113,7 +117,7 @@ export default function WorkerProfile() {
         >
           <ChevronLeft color="#111827" size={28} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Profile</Text>
+        <Text style={styles.headerTitle}>{t("My Profile")}</Text>
       </View>
 
       <ScrollView
@@ -128,11 +132,11 @@ export default function WorkerProfile() {
             </Text>
           </View>
           <Text style={styles.name}>{profile?.name || "Worker"}</Text>
-          <Text style={styles.workerId}>Worker ID #{profile?.id || "-"}</Text>
+          <Text style={styles.workerId}>{t("Worker ID #")}{profile?.id || "-"}</Text>
           <View style={styles.activeBadge}>
             <ShieldCheck color="#087C49" size={15} />
             <Text style={styles.activeBadgeText}>
-              {profile?.isActive ? "Active profile" : "Inactive profile"}
+              {t(profile?.isActive ? "Active profile" : "Inactive profile")}
             </Text>
           </View>
         </View>
@@ -145,47 +149,50 @@ export default function WorkerProfile() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Skills</Text>
+          <Text style={styles.cardTitle}>{t("Skills")}</Text>
           <View style={styles.chipsWrap}>
             {(profile?.skills || []).length ? (
               profile.skills.map((skill: any) => (
                 <View key={skill.id} style={styles.chip}>
                   <BriefcaseBusiness color="#087C49" size={14} />
-                  <Text style={styles.chipText}>{skill.name}</Text>
+                  <Text style={styles.chipText}>{entityText("SKILL", skill)}</Text>
                 </View>
               ))
             ) : (
-              <Text style={styles.emptyText}>No skills added.</Text>
+              <Text style={styles.emptyText}>{t("No skills added.")}</Text>
             )}
           </View>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Assigned Nakas</Text>
+          <Text style={styles.cardTitle}>{t("Assigned Nakas")}</Text>
           {(profile?.nakas || []).length ? (
             profile.nakas.map((naka: any) => (
               <Text key={naka.id} style={styles.nakaText}>
-                • {naka.name}{naka.pincode ? ` · ${naka.pincode}` : ""}
+                • {entityText("NAKA", naka)}{naka.pincode ? ` · ${naka.pincode}` : ""}
               </Text>
             ))
           ) : (
-            <Text style={styles.emptyText}>No Naka assigned.</Text>
+            <Text style={styles.emptyText}>{t("No Naka assigned.")}</Text>
           )}
         </View>
 
         <TouchableOpacity style={styles.contactButton} onPress={contactSupport}>
           <PhoneCall color="#FFFFFF" size={20} />
-          <Text style={styles.contactButtonText}>Contact Us</Text>
+          <Text style={styles.contactButtonText}>{t("Contact Us")}</Text>
         </TouchableOpacity>
         {profile?.mitra?.name ? (
-          <Text style={styles.supportHint}>
-            Your support Field Agent: {profile.mitra.name}
+          <Text style={styles.supportHint}>{t("Your support Field Agent: ")}{profile.mitra.name}
           </Text>
         ) : null}
 
+        <TouchableOpacity style={styles.languageButton} onPress={() => router.push("/select-language")}>
+          <Text style={styles.languageButtonText}>{t("Change Language")} · {languages.find(l => l.code === language)?.nativeName || "English"}</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.logoutButton} onPress={logout}>
           <LogOut color="#DC2626" size={20} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t("Logout")}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -245,6 +252,8 @@ const styles = StyleSheet.create({
   contactButton: { alignItems: "center", backgroundColor: "#087C49", borderRadius: 16, flexDirection: "row", justifyContent: "center", paddingVertical: 16 },
   contactButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginLeft: 8 },
   supportHint: { color: "#6B7280", fontSize: 12, marginTop: 8, textAlign: "center" },
+  languageButton: { backgroundColor: "#ECFDF5", borderRadius: 16, alignItems: "center", paddingVertical: 16, marginTop: 12 },
+  languageButtonText: { fontSize: 15, fontWeight: "800", color: "#047857" },
   logoutButton: { alignItems: "center", backgroundColor: "#FEF2F2", borderColor: "#FECACA", borderRadius: 16, borderWidth: 1, flexDirection: "row", justifyContent: "center", marginTop: 16, paddingVertical: 16 },
   logoutText: { color: "#DC2626", fontSize: 16, fontWeight: "900", marginLeft: 8 },
 });

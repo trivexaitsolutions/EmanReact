@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/worker/booking-details.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -24,6 +25,7 @@ import {
 import { API_URL } from "../../constants/api";
 
 export default function WorkerBookingDetails() {
+  const { t, entityText } = useI18n();
   const { id } = useLocalSearchParams();
 
   const [booking, setBooking] = useState<any>(null);
@@ -86,9 +88,7 @@ export default function WorkerBookingDetails() {
 
   if (!booking) {
     return (
-      <Text style={{ textAlign: "center", marginTop: 50 }}>
-        Booking not found
-      </Text>
+      <Text style={{ textAlign: "center", marginTop: 50 }}>{t("Booking not found")}</Text>
     );
   }
 
@@ -108,7 +108,7 @@ export default function WorkerBookingDetails() {
         >
           <ChevronLeft color="#000" size={28} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Job #{booking.id}</Text>
+        <Text style={styles.headerTitle}>{t("Job #")}{booking.id}</Text>
       </View>
 
       <ScrollView
@@ -129,18 +129,17 @@ export default function WorkerBookingDetails() {
               styles.statusText,
               { color: isCompleted ? "#059669" : isCancelled ? "#DC2626" : "#D97706" },
             ]}
-          >
-            Status: {booking.status}
+          >{t("Status: ")}{t(String(booking.status || "").replace(/_/g, " "))}
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Job Summary</Text>
+          <Text style={styles.cardTitle}>{t("Job Summary")}</Text>
 
           <View style={styles.detailRow}>
             <Calendar color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Date & Time</Text>
+              <Text style={styles.detailLabel}>{t("Date & Time")}</Text>
               <Text style={styles.detailValue}>
                 {formatDate(booking.createdAt)}
               </Text>
@@ -150,12 +149,12 @@ export default function WorkerBookingDetails() {
           <View style={styles.detailRow}>
             <MapPin color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Work Location</Text>
+              <Text style={styles.detailLabel}>{t("Work Location")}</Text>
               <Text style={styles.detailValue}>
                 {booking.workLocationText ||
                   booking.naka?.name ||
                   booking.nakaName ||
-                  "Location confirmed by customer"}
+                  t("Location confirmed by customer")}
               </Text>
             </View>
           </View>
@@ -164,7 +163,7 @@ export default function WorkerBookingDetails() {
             <IndianRupee color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
               <Text style={styles.detailLabel}>
-                {isCancelled ? "Original Job Share" : "Your Earning"}
+                {t(isCancelled ? "Original Job Share" : "Your Earning")}
               </Text>
               <Text style={styles.detailValue}>₹{getAmount()}</Text>
             </View>
@@ -174,34 +173,29 @@ export default function WorkerBookingDetails() {
         {isCancelled && (
           <View style={styles.fineCard}>
             <View style={styles.fineTitleRow}>
-              <Text style={styles.fineCardTitle}>Cancellation Fine</Text>
+              <Text style={styles.fineCardTitle}>{t("Cancellation Fine")}</Text>
               <Text style={styles.fineAmount}>
                 {booking.fineStatus === "PENDING"
-                  ? "Pending"
+                  ? t("Pending")
                   : `₹${Number(booking.fineAmount || 0)}`}
               </Text>
             </View>
 
             {booking.fineStatus === "PENDING" ? (
-              <Text style={styles.fineDescription}>
-                Field Agent ne fine amount abhi finalize nahi kiya hai.
-              </Text>
+              <Text style={styles.fineDescription}>{t("Field Agent ne fine amount abhi finalize nahi kiya hai.")}</Text>
             ) : (
-              <Text style={styles.fineDescription}>
-                Ye Field Agent ke final conflict decision ke hisab se fine hai.
-              </Text>
+              <Text style={styles.fineDescription}>{t("Ye Field Agent ke final conflict decision ke hisab se fine hai.")}</Text>
             )}
 
             {booking.cancellationReason ? (
-              <Text style={styles.fineReason}>
-                Reason: {booking.cancellationReason}
+              <Text style={styles.fineReason}>{t("Reason: ")}{booking.cancellationReason}
               </Text>
             ) : null}
           </View>
         )}
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Client Details</Text>
+          <Text style={styles.cardTitle}>{t("Client Details")}</Text>
 
           <View style={styles.workerRow}>
             <View style={styles.avatar}>
@@ -215,7 +209,7 @@ export default function WorkerBookingDetails() {
               <Text style={styles.workerPhone}>
                 {booking.customer?.phone ||
                   booking.customerPhone ||
-                  "Phone not available"}
+                  t("Phone not available")}
               </Text>
             </View>
           </View>
@@ -231,15 +225,14 @@ export default function WorkerBookingDetails() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Assigned Workers</Text>
+          <Text style={styles.cardTitle}>{t("Assigned Workers")}</Text>
 
           <View style={styles.detailRow}>
             <User color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Worker Count</Text>
+              <Text style={styles.detailLabel}>{t("Worker Count")}</Text>
               <Text style={styles.detailValue}>
-                {booking.workerCount || booking.workers?.length || 1} Worker(s)
-              </Text>
+                {booking.workerCount || booking.workers?.length || 1}{t(" Worker(s)")}</Text>
             </View>
           </View>
         </View>
@@ -248,15 +241,11 @@ export default function WorkerBookingDetails() {
           <View style={styles.ratingSection}>
           {isClientRated ? (
             <>
-              <Text style={styles.ratingMsg}>
-                Aapne is client ko rating de di hai. Aap rating update bhi kar
-                sakte ho.
-              </Text>
+              <Text style={styles.ratingMsg}>{t("Aapne is client ko rating de di hai. Aap rating update bhi kar sakte ho.")}</Text>
 
               <View style={styles.oldRatingBox}>
                 <Star color="#F59E0B" size={18} fill="#F59E0B" />
-                <Text style={styles.oldRatingText}>
-                  Current Rating: {clientRating?.rating || 5}/5
+                <Text style={styles.oldRatingText}>{t("Current Rating: ")}{clientRating?.rating || 5}/5
                 </Text>
               </View>
 
@@ -285,16 +274,12 @@ export default function WorkerBookingDetails() {
                     styles.ratingBtnText,
                     { color: "#374151", marginLeft: 8 },
                   ]}
-                >
-                  Update Client Rating
-                </Text>
+                >{t("Update Client Rating")}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <Text style={styles.ratingMsg}>
-                Client ke saath kaam kaisa raha? Rating dein.
-              </Text>
+              <Text style={styles.ratingMsg}>{t("Client ke saath kaam kaisa raha? Rating dein.")}</Text>
 
               <TouchableOpacity
                 style={styles.ratingBtn}
@@ -306,9 +291,7 @@ export default function WorkerBookingDetails() {
                 }
               >
                 <Star color="#fff" size={20} />
-                <Text style={[styles.ratingBtnText, { marginLeft: 8 }]}>
-                  Rate Client
-                </Text>
+                <Text style={[styles.ratingBtnText, { marginLeft: 8 }]}>{t("Rate Client")}</Text>
               </TouchableOpacity>
             </>
           )}

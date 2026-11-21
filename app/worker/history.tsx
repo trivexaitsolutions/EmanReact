@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/worker/history.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -24,6 +25,7 @@ import WorkerBottomNav from "../../components/worker-bottom-nav";
 import { API_URL } from "../../constants/api";
 
 export default function WorkerHistory() {
+  const { t, entityText } = useI18n();
   const [history, setHistory] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,13 +110,13 @@ export default function WorkerHistory() {
             ]}
           >
             <Text style={[styles.statusText, { color: statusColor }]}>
-              {item.status}
+              {t(String(item.status || "").replace(/_/g, " "))}
             </Text>
           </View>
         </View>
 
         <Text style={styles.nakaName}>
-          {item.customerName || "Client Booking"}
+          {item.customerName || t("Client Booking")}
         </Text>
 
         <View style={styles.detailsRow}>
@@ -134,23 +136,20 @@ export default function WorkerHistory() {
         {isCancelled && (
           <View style={styles.fineBox}>
             <View style={styles.fineHeaderRow}>
-              <Text style={styles.fineLabel}>Cancellation Fine</Text>
+              <Text style={styles.fineLabel}>{t("Cancellation Fine")}</Text>
               <Text style={styles.fineValue}>
                 {item.fineStatus === "PENDING"
-                  ? "Pending"
+                  ? t("Pending")
                   : `₹${Number(item.fineAmount || 0)}`}
               </Text>
             </View>
 
             {item.fineStatus === "PENDING" ? (
-              <Text style={styles.fineHint}>
-                Field Agent ne fine abhi finalize nahi kiya hai.
-              </Text>
+              <Text style={styles.fineHint}>{t("Field Agent ne fine abhi finalize nahi kiya hai.")}</Text>
             ) : null}
 
             {item.cancellationReason ? (
-              <Text style={styles.cancelReason}>
-                Reason: {item.cancellationReason}
+              <Text style={styles.cancelReason}>{t("Reason: ")}{item.cancellationReason}
               </Text>
             ) : null}
           </View>
@@ -176,7 +175,7 @@ export default function WorkerHistory() {
                 { color: item.isClientRated ? "#059669" : "#D97706" },
               ]}
             >
-              {item.isClientRated ? "Client Rated" : "Client Rating Pending"}
+              {t(item.isClientRated ? "Client Rated" : "Client Rating Pending")}
             </Text>
           </View>
         )}
@@ -195,7 +194,7 @@ export default function WorkerHistory() {
         >
           <ChevronLeft color="#000" size={28} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Work History</Text>
+        <Text style={styles.headerTitle}>{t("Work History")}</Text>
       </View>
 
       {isLoading ? (
@@ -214,7 +213,7 @@ export default function WorkerHistory() {
                   <Text style={styles.summaryValue}>
                     {summary.completedJobs || 0}
                   </Text>
-                  <Text style={styles.summaryLabel}>Completed Jobs</Text>
+                  <Text style={styles.summaryLabel}>{t("Completed Jobs")}</Text>
                 </View>
 
                 <View style={styles.summaryDivider} />
@@ -223,7 +222,7 @@ export default function WorkerHistory() {
                   <Text style={styles.summaryValue}>
                     ₹{summary.totalEarning || 0}
                   </Text>
-                  <Text style={styles.summaryLabel}>Total Earning</Text>
+                  <Text style={styles.summaryLabel}>{t("Total Earning")}</Text>
                 </View>
 
                 <View style={styles.summaryDivider} />
@@ -232,7 +231,7 @@ export default function WorkerHistory() {
                   <Text style={styles.summaryValue}>
                     {summary.pendingRatings || 0}
                   </Text>
-                  <Text style={styles.summaryLabel}>Pending Ratings</Text>
+                  <Text style={styles.summaryLabel}>{t("Pending Ratings")}</Text>
                 </View>
               </View>
             ) : null
@@ -241,9 +240,7 @@ export default function WorkerHistory() {
       ) : (
         <View style={styles.emptyState}>
           <Clock color="#D1D5DB" size={60} />
-          <Text style={styles.emptyText}>
-            Abhi tak koi work history nahi hai.
-          </Text>
+          <Text style={styles.emptyText}>{t("Abhi tak koi work history nahi hai.")}</Text>
         </View>
       )}
 

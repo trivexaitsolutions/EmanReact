@@ -1,16 +1,18 @@
+import { useI18n } from '../i18n';
 import { router } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function BookingStepHeader({ step }: { step: 1 | 2 | 3 }) {
+  const { t, entityText } = useI18n();
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#111827" strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.title}>Book Worker</Text>
+        <Text style={styles.title}>{t("Book Worker")}</Text>
         <Text style={styles.stepText}>{step}/3</Text>
       </View>
 

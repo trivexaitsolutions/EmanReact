@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/worker/active-duty.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -19,6 +20,7 @@ import QRCode from "react-native-qrcode-svg";
 import { API_URL } from "../../constants/api";
 
 export default function ActiveDuty() {
+  const { t, entityText } = useI18n();
   const [dutyData, setDutyData] = useState<any>(null);
   const [workerSession, setWorkerSession] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,7 +104,7 @@ export default function ActiveDuty() {
       }
 
       if (!workerId) {
-        Alert.alert("Error", "Worker session missing hai.");
+        Alert.alert(t("Error"), t("Worker session missing hai."));
         return;
       }
 
@@ -110,7 +112,7 @@ export default function ActiveDuty() {
       const phone = response.data?.worker?.mitra?.phone;
 
       if (!response.data?.success || !phone) {
-        Alert.alert("Field Agent Not Found", "Assigned Field Agent ka mobile number available nahi hai.");
+        Alert.alert(t("Field Agent Not Found"), t("Assigned Field Agent ka mobile number available nahi hai."));
         return;
       }
 
@@ -120,7 +122,7 @@ export default function ActiveDuty() {
     } catch (error: any) {
       console.log("Call Field Agent error:", error?.response?.data || error);
       Alert.alert(
-        "Error",
+        t("Error"),
         error?.response?.data?.message || "Field Agent ka number load nahi ho paya.",
       );
     } finally {
@@ -161,18 +163,16 @@ export default function ActiveDuty() {
         <View style={styles.headerCard}>
           <View style={styles.statusBadge}>
             <CheckCircle2 color="#047857" size={16} />
-            <Text style={styles.statusBadgeText}>New Duty</Text>
+            <Text style={styles.statusBadgeText}>{t("New Duty")}</Text>
           </View>
 
-          <Text style={styles.headerTitle}>Reach Location</Text>
-          <Text style={styles.headerSub}>
-            Customer ko QR scan karna hai jab aap location par pahunch jao.
-          </Text>
+          <Text style={styles.headerTitle}>{t("Reach Location")}</Text>
+          <Text style={styles.headerSub}>{t("Customer ko QR scan karna hai jab aap location par pahunch jao.")}</Text>
         </View>
 
         <View style={styles.infoCard}>
           <View style={styles.infoBlock}>
-            <Text style={styles.infoLabel}>Customer</Text>
+            <Text style={styles.infoLabel}>{t("Customer")}</Text>
             <Text style={styles.infoValue}>
               {dutyData.customer?.name || "Customer"}
             </Text>
@@ -181,7 +181,7 @@ export default function ActiveDuty() {
           <View style={styles.infoDivider} />
 
           <View style={styles.infoBlock}>
-            <Text style={styles.infoLabel}>Location</Text>
+            <Text style={styles.infoLabel}>{t("Location")}</Text>
             <View style={styles.locationRow}>
               <MapPin color="#10B981" size={18} />
               <Text style={styles.locationText}>{workAddress}</Text>
@@ -190,8 +190,8 @@ export default function ActiveDuty() {
         </View>
 
         <View style={styles.qrCard}>
-          <Text style={styles.cardTitle}>Arrival QR</Text>
-          <Text style={styles.cardSub}>Customer ko ye QR scan karne dein.</Text>
+          <Text style={styles.cardTitle}>{t("Arrival QR")}</Text>
+          <Text style={styles.cardSub}>{t("Customer ko ye QR scan karne dein.")}</Text>
 
           <View style={styles.qrWrapper}>
             <QRCode
@@ -203,17 +203,15 @@ export default function ActiveDuty() {
           </View>
 
           <View style={styles.manualCodeBox}>
-            <Text style={styles.manualCodeLabel}>OR USE 6 DIGIT CODE</Text>
+            <Text style={styles.manualCodeLabel}>{t("OR USE 6 DIGIT CODE")}</Text>
             <Text style={styles.manualCodeValue}>
               {String(dutyData.arrivalCode || "------")}
             </Text>
-            <Text style={styles.manualCodeHint}>
-              Camera problem ho to customer ye code enter kare. Code har 10 minute mein badalta hai.
-            </Text>
+            <Text style={styles.manualCodeHint}>{t("Camera problem ho to customer ye code enter kare. Code har 10 minute mein badalta hai.")}</Text>
           </View>
 
           <View style={styles.bookingChip}>
-            <Text style={styles.bookingChipText}>Booking #{dutyData.id}</Text>
+            <Text style={styles.bookingChipText}>{t("Booking #")}{dutyData.id}</Text>
           </View>
         </View>
 
@@ -231,8 +229,8 @@ export default function ActiveDuty() {
             )}
           </View>
           <View style={styles.callTextWrap}>
-            <Text style={styles.callTitle}>Call Field Agent</Text>
-            <Text style={styles.callSub}>Need help? Tap to call</Text>
+            <Text style={styles.callTitle}>{t("Call Field Agent")}</Text>
+            <Text style={styles.callSub}>{t("Need help? Tap to call")}</Text>
           </View>
         </TouchableOpacity>
       </ScrollView>

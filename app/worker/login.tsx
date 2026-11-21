@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/worker/login.tsx
 import axios from "axios";
 import { router } from "expo-router";
@@ -20,6 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../../constants/api";
 
 export default function WorkerLoginScreen() {
+  const { t, entityText, refreshTranslations } = useI18n();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState(""); // Backend ke liye variable name password hi rakha hai
   const [isLoading, setIsLoading] = useState(false);
@@ -33,18 +35,13 @@ export default function WorkerLoginScreen() {
 
   const handleLogin = async () => {
     if (!loginId || password.length === 0) {
-      Alert.alert("Error", "Please enter your Mobile No and PIN.");
+      Alert.alert(t("Error"), t("Please enter your Mobile No and PIN."));
       return;
     }
 
     setIsLoading(true);
     try {
-      console.log(
-        "Attempting login with:",
-        loginId,
-        password,
-        `${API_URL}/worker/login`,
-      );
+      // Never log customer/worker credentials, even in a development build.
       const response = await axios.post(`${API_URL}/worker/login`, {
         loginId: loginId.toLowerCase(),
         password,
@@ -56,6 +53,8 @@ export default function WorkerLoginScreen() {
           JSON.stringify(response.data.worker),
         );
         await AsyncStorage.setItem("activeRole", "worker");
+        // Check Admin translations on every successful Worker login (non-blocking).
+        void refreshTranslations();
 
         router.replace("/worker/dashboard");
       }
@@ -64,7 +63,7 @@ export default function WorkerLoginScreen() {
         "MOBILE ERROR:",
         error.response ? error.response.data : error.message,
       );
-      Alert.alert("Login Failed", "Incorrect Mobile No or PIN.");
+      Alert.alert(t("Login Failed"), t("Incorrect Mobile No or PIN."));
     } finally {
       setIsLoading(false);
     }
@@ -98,14 +97,14 @@ export default function WorkerLoginScreen() {
         </View>
 
         <View style={styles.formContainer}>
-          <Text style={styles.welcomeText}>Welcome</Text>
+          <Text style={styles.welcomeText}>{t("Welcome")}</Text>
 
           {/* Mobile No Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>MOBILE NO</Text>
+            <Text style={styles.label}>{t("MOBILE NO")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your mobile no"
+              placeholder={t("Enter your mobile no")}
               placeholderTextColor="#9CA3AF"
               keyboardType="number-pad"
               autoCapitalize="none"
@@ -116,10 +115,10 @@ export default function WorkerLoginScreen() {
 
           {/* PIN Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>PIN</Text>
+            <Text style={styles.label}>{t("PIN")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter your PIN"
+              placeholder={t("Enter your PIN")}
               placeholderTextColor="#9CA3AF"
               secureTextEntry
               keyboardType="numeric" // Changes keyboard to number pad for PIN
@@ -141,17 +140,17 @@ export default function WorkerLoginScreen() {
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.loginButtonText}>Login</Text>
+              <Text style={styles.loginButtonText}>{t("Login")}</Text>
             )}
           </TouchableOpacity>
 
           {/* Footer Links */}
           <View style={styles.footerLinks}>
             <TouchableOpacity>
-              <Text style={styles.linkText}>Forgot PIN?</Text>
+              <Text style={styles.linkText}>{t("Forgot PIN?")}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ marginTop: 15 }}>
-              <Text style={styles.linkText}>Privacy</Text>
+              <Text style={styles.linkText}>{t("Privacy")}</Text>
             </TouchableOpacity>
           </View>
         </View>

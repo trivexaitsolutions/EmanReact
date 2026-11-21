@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack, useFocusEffect } from "expo-router";
@@ -12,12 +13,14 @@ import {
   Alert,
   Image,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import WorkerBottomNav from "../../components/worker-bottom-nav";
+import LanguageQuickSwitcher from "../../components/language-quick-switcher";
 import { API_URL } from "../../constants/api";
 import { registerForPushNotificationsAsync } from "../../utils/pushToken";
 
@@ -34,6 +37,7 @@ type OperationalStatus = {
 };
 
 export default function WorkerDashboard() {
+  const { t, entityText } = useI18n();
   const [workerData, setWorkerData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isHolding, setIsHolding] = useState(false);
@@ -153,7 +157,7 @@ export default function WorkerDashboard() {
         router.replace("/worker/available");
       }
     } catch (error: any) {
-      Alert.alert("Error", error?.response?.data?.message || "Server error.");
+      Alert.alert(t("Error"), error?.response?.data?.message || "Server error.");
     }
   };
 
@@ -239,13 +243,15 @@ export default function WorkerDashboard() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure?", [
-      { text: "No", style: "cancel" },
+    Alert.alert(t("Logout"), t("Are you sure?"), [
+      { text: t("No"), style: "cancel" },
       {
-        text: "Yes",
+        text: t("Yes"),
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.clear();
+          await AsyncStorage.multiRemove([
+            "workerSession", "customerSession", "activeRole", "newBookingDraft",
+          ]);
           router.replace("/");
         },
       },
@@ -298,17 +304,24 @@ export default function WorkerDashboard() {
 
       {/* Fixed Logout Top Bar */}
       <View style={styles.topNav}>
-        <Text style={styles.navTitle}>Dashboard</Text>
+        <Text style={styles.navTitle}>{t("Dashboard")}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+          <LanguageQuickSwitcher />
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
           <LogOut color="#EF4444" size={20} />
         </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 1. Header Banner */}
         <View style={styles.banner}>
-          <Text style={styles.bannerText}>WANT TO EARN?</Text>
-          <Text style={styles.bannerTextBold}>BE READY</Text>
+          <Text style={styles.bannerText}>{t("WANT TO EARN?")}</Text>
+          <Text style={styles.bannerTextBold}>{t("BE READY")}</Text>
         </View>
 
         {/* 2. Profile & Rating */}
@@ -325,9 +338,9 @@ export default function WorkerDashboard() {
 
           <View style={styles.ratingContainer}>
             <View style={styles.ratingHeader}>
-              <Text style={styles.ratingTitle}>Performance</Text>
+              <Text style={styles.ratingTitle}>{t("Performance")}</Text>
               <Text style={[styles.ratingLabel, { color: ratingColor }]}>
-                {ratingLabel} ({ratingScore})
+                {t(ratingLabel)} ({ratingScore})
               </Text>
             </View>
 
@@ -352,8 +365,8 @@ export default function WorkerDashboard() {
               />
             </View>
             <View style={styles.gaugeLabels}>
-              <Text style={styles.gLabel}>Poor</Text>
-              <Text style={styles.gLabel}>Exc</Text>
+              <Text style={styles.gLabel}>{t("Poor")}</Text>
+              <Text style={styles.gLabel}>{t("Exc")}</Text>
             </View>
           </View>
         </View>
@@ -362,23 +375,21 @@ export default function WorkerDashboard() {
         <View style={styles.nakaCard}>
           <View style={styles.cardHeader}>
             <CheckCircle2 color="#047857" size={20} />
-            <Text style={styles.nakaTitle}>MY DECIDED NAKA</Text>
+            <Text style={styles.nakaTitle}>{t("MY DECIDED NAKA")}</Text>
           </View>
           <View style={styles.nakaList}>
             {nakasList.map((naka: any, index: number) => (
               <Text key={index} style={styles.nakaItem}>
-                <Text style={styles.nakaBullet}>{index + 1}.</Text> {naka.name}
+                <Text style={styles.nakaBullet}>{index + 1}.</Text> {entityText("NAKA", naka)}
               </Text>
             ))}
           </View>
         </View>
 
         {/* 4. Full Day Availability */}
-        <Text style={styles.availabilitySectionLabel}>Full Day</Text>
+        <Text style={styles.availabilitySectionLabel}>{t("Full Day")}</Text>
         {workerData?.ratePreview && (
-          <Text style={{ color: "#047857", fontWeight: "800", marginBottom: 9 }}>
-            From ₹{workerData.ratePreview.fullDay.toLocaleString("en-IN")} / 8 hours
-          </Text>
+          <Text style={{ color: "#047857", fontWeight: "800", marginBottom: 9 }}>₹{workerData.ratePreview.fullDay.toLocaleString("en-IN")} {t("onwards")} / {t("8 hours")}</Text>
         )}
 
         <TouchableOpacity
@@ -403,16 +414,16 @@ export default function WorkerDashboard() {
               <Text style={styles.longPressText}>
                 {isIdle
                   ? isHolding
-                    ? "Keep Holding..."
-                    : "Hold 3 Seconds"
-                  : "Return to Work"}
+                    ? t("Keep Holding...")
+                    : t("Hold 3 Seconds")
+                  : t("Return to Work")}
               </Text>
             </View>
           </View>
         </TouchableOpacity>
 
         {/* 5. Short Period Availability */}
-        <Text style={styles.shortWorkLabel}>Some Hours Work</Text>
+        <Text style={styles.shortWorkLabel}>{t("Some Hours Work")}</Text>
         <View style={styles.slotGrid}>
           {SLOT_OPTIONS.map((hours) => {
             const isThisSlotHolding = holdingSlot === hours;
@@ -445,14 +456,17 @@ export default function WorkerDashboard() {
                     <Clock3 color="#10B981" size={24} />
                   </View>
                   <Text style={styles.slotHoursNumber}>{hours}</Text>
-                  <Text style={styles.slotHoursText}>Hours</Text>
+                  <Text style={styles.slotHoursText}>{t("Hours")}</Text>
                   {workerData?.ratePreview && (
-                    <Text style={{ color: "#047857", fontWeight: "800", fontSize: 13, marginTop: 5 }}>
-                      From ₹{Number(hours === 2 ? workerData.ratePreview.twoHours : hours === 3 ? workerData.ratePreview.threeHours : workerData.ratePreview.fourHours).toLocaleString("en-IN")}
-                    </Text>
+                    <View style={styles.slotRateBlock}>
+                      <Text style={styles.slotRateAmount}>
+                        ₹{Number(hours === 2 ? workerData.ratePreview.twoHours : hours === 3 ? workerData.ratePreview.threeHours : workerData.ratePreview.fourHours).toLocaleString("en-IN")}
+                      </Text>
+                      <Text style={styles.slotRateSuffix}>{t("onwards")}</Text>
+                    </View>
                   )}
                   <Text style={styles.slotHoldHint}>
-                    {isThisSlotHolding ? "Keep Holding..." : "Hold 3 sec"}
+                    {t(isThisSlotHolding ? "Keep Holding..." : "Hold 3 sec")}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -460,11 +474,9 @@ export default function WorkerDashboard() {
           })}
         </View>
         {workerData?.ratePreview && (
-          <Text style={{ color: "#64748B", fontSize: 11, marginTop: 10 }}>
-            Duration-wise starting prices; final booked amount is confirmed at checkout.
-          </Text>
+          <Text style={{ color: "#64748B", fontSize: 11, marginTop: 10 }}>{t("Duration-wise starting prices; final booked amount is confirmed at checkout.")}</Text>
         )}
-      </View>
+      </ScrollView>
 
       <WorkerBottomNav active="home" />
 
@@ -486,11 +498,12 @@ const styles = StyleSheet.create({
   },
   navTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
   logoutBtn: { padding: 8, backgroundColor: "#FEF2F2", borderRadius: 10 },
+  scrollArea: { flex: 1 },
   scrollContent: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 14,
-    paddingBottom: 12,
+    paddingBottom: 24,
   },
 
   // Banner
@@ -672,11 +685,13 @@ const styles = StyleSheet.create({
   },
   slotGrid: {
     flexDirection: "row",
+    alignItems: "stretch",
     gap: 8,
   },
   slotCard: {
     flex: 1,
-    minHeight: 112,
+    minWidth: 0,
+    minHeight: 184,
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
     borderWidth: 1.5,
@@ -692,11 +707,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1FAE5",
   },
   slotCardContent: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    justifyContent: "flex-start",
+    paddingHorizontal: 5,
+    paddingVertical: 12,
     zIndex: 1,
   },
   slotIconWrap: {
@@ -717,15 +732,38 @@ const styles = StyleSheet.create({
   slotHoursText: {
     color: "#374151",
     fontSize: 13,
+    lineHeight: 19,
     fontWeight: "800",
     marginTop: 1,
+    textAlign: "center",
+  },
+  slotRateBlock: {
+    alignItems: "center",
+    marginTop: 7,
+    width: "100%",
+  },
+  slotRateAmount: {
+    color: "#047857",
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  slotRateSuffix: {
+    color: "#047857",
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "700",
+    textAlign: "center",
   },
   slotHoldHint: {
     color: "#047857",
     fontSize: 10,
+    lineHeight: 15,
     fontWeight: "800",
-    marginTop: 5,
+    marginTop: 8,
     textAlign: "center",
+    width: "100%",
   },
   disabledOption: {
     opacity: 0.45,

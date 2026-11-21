@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/user/booking-details.tsx
 import axios from "axios";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -23,6 +24,7 @@ import { API_URL } from "../../constants/api";
 import { formatBookingRupees } from "../../utils/bookingMoney";
 
 export default function BookingDetails() {
+  const { t, entityText } = useI18n();
   const { id } = useLocalSearchParams(); // History page se jo ID aayi hai
   const [booking, setBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,9 +59,7 @@ export default function BookingDetails() {
 
   if (!booking)
     return (
-      <Text style={{ textAlign: "center", marginTop: 50 }}>
-        Booking not found
-      </Text>
+      <Text style={{ textAlign: "center", marginTop: 50 }}>{t("Booking not found")}</Text>
     );
 
   // Check if rating is already given (Backend se isRated aayega, ya rating check karenge)
@@ -78,7 +78,7 @@ export default function BookingDetails() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft color="#000" size={28} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Booking #{booking.id}</Text>
+        <Text style={styles.headerTitle}>{t("Booking #")}{booking.id}</Text>
       </View>
 
       <ScrollView
@@ -100,19 +100,18 @@ export default function BookingDetails() {
               styles.statusText,
               { color: booking.status === "COMPLETED" ? "#059669" : "#D97706" },
             ]}
-          >
-            Status: {booking.status}
+          >{t("Status: ")}{booking.status}
           </Text>
         </View>
 
         {/* BASIC DETAILS CARD */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Job Summary</Text>
+          <Text style={styles.cardTitle}>{t("Job Summary")}</Text>
 
           <View style={styles.detailRow}>
             <Calendar color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Date & Time</Text>
+              <Text style={styles.detailLabel}>{t("Date & Time")}</Text>
               <Text style={styles.detailValue}>
                 {new Date(booking.createdAt).toLocaleDateString("en-IN", {
                   day: "numeric",
@@ -126,9 +125,9 @@ export default function BookingDetails() {
           <View style={styles.detailRow}>
             <MapPin color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
-              <Text style={styles.detailLabel}>Source Naka</Text>
+              <Text style={styles.detailLabel}>{t("Source Naka")}</Text>
               <Text style={styles.detailValue}>
-                {booking.naka?.name || "General Naka"}
+                {booking.naka?.name || t("General Naka")}
               </Text>
             </View>
           </View>
@@ -137,7 +136,7 @@ export default function BookingDetails() {
             <Wallet color="#6B7280" size={20} />
             <View style={styles.detailTextGroup}>
               <Text style={styles.detailLabel}>
-                {booking.razorpayPaymentId ? "Total Paid" : "Booking Amount"}
+                {t(booking.razorpayPaymentId ? "Total Paid" : "Booking Amount")}
               </Text>
               <Text style={styles.detailValue}>
                 {formatBookingRupees(booking.totalAmount ?? booking.amount)}
@@ -148,8 +147,7 @@ export default function BookingDetails() {
 
         {/* WORKERS LIST CARD */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            Workers on Duty ({booking.workers?.length || 0})
+          <Text style={styles.cardTitle}>{t("Workers on Duty (")}{booking.workers?.length || 0})
           </Text>
 
           {booking.workers?.map((worker: any, index: number) => (
@@ -165,12 +163,11 @@ export default function BookingDetails() {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.workerName}>
-                  {worker.name || "Verified Worker"}
+                  {worker.name || t("Verified Worker")}
                 </Text>
                 <Text style={styles.workerPhone}>{worker.phone}</Text>
                 {charges.get(Number(worker.id))?.poolNumber != null ? (
-                  <Text style={styles.poolPriceLabel}>
-                    Pool {charges.get(Number(worker.id)).poolNumber}
+                  <Text style={styles.poolPriceLabel}>{t("Pool ")}{charges.get(Number(worker.id)).poolNumber}
                     {charges.get(Number(worker.id))?.baseRate != null
                       ? ` · Base ${formatBookingRupees(charges.get(Number(worker.id)).baseRate)}`
                       : ""}
@@ -178,7 +175,7 @@ export default function BookingDetails() {
                 ) : null}
               </View>
               <View style={styles.workerChargeBlock}>
-                <Text style={styles.workerChargeCaption}>Charged</Text>
+                <Text style={styles.workerChargeCaption}>{t("Charged")}</Text>
                 <Text style={styles.workerCharge}>
                   {formatBookingRupees(charges.get(Number(worker.id))?.amount)}
                 </Text>
@@ -191,9 +188,7 @@ export default function BookingDetails() {
         <View style={styles.ratingSection}>
           {isRated ? (
             <>
-              <Text style={styles.ratingMsg}>
-                Aapne is duty ke liye rating de di hai. 🙏
-              </Text>
+              <Text style={styles.ratingMsg}>{t("Aapne is duty ke liye rating de di hai. 🙏")}</Text>
               <TouchableOpacity
                 style={[
                   styles.ratingBtn,
@@ -216,16 +211,12 @@ export default function BookingDetails() {
                     styles.ratingBtnText,
                     { color: "#374151", marginLeft: 8 },
                   ]}
-                >
-                  Edit Your Rating
-                </Text>
+                >{t("Edit Your Rating")}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <Text style={styles.ratingMsg}>
-                Workers ki mehnat ko star dein!
-              </Text>
+              <Text style={styles.ratingMsg}>{t("Workers ki mehnat ko star dein!")}</Text>
               <TouchableOpacity
                 style={styles.ratingBtn}
                 onPress={() =>
@@ -236,9 +227,7 @@ export default function BookingDetails() {
                 }
               >
                 <Star color="#fff" size={20} />
-                <Text style={[styles.ratingBtnText, { marginLeft: 8 }]}>
-                  Give Rating
-                </Text>
+                <Text style={[styles.ratingBtnText, { marginLeft: 8 }]}>{t("Give Rating")}</Text>
               </TouchableOpacity>
             </>
           )}

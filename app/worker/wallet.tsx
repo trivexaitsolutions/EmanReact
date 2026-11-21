@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Stack, router, useFocusEffect } from "expo-router";
@@ -23,6 +24,7 @@ import { API_URL } from "../../constants/api";
 const PAGE_SIZE = 5;
 
 export default function WorkerWallet() {
+  const { t, entityText } = useI18n();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -152,7 +154,7 @@ export default function WorkerWallet() {
         >
           <ChevronLeft color="#111827" size={28} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Wallet</Text>
+        <Text style={styles.headerTitle}>{t("Wallet")}</Text>
       </View>
 
       {isLoading ? (
@@ -175,7 +177,7 @@ export default function WorkerWallet() {
                 <View style={styles.walletIconWrap}>
                   <WalletCards color="#087C49" size={28} />
                 </View>
-                <Text style={styles.balanceLabel}>This week balance</Text>
+                <Text style={styles.balanceLabel}>{t("This week balance")}</Text>
                 <Text style={styles.balanceAmount}>
                   ₹{Number(summary?.balance || 0).toLocaleString("en-IN")}
                 </Text>
@@ -183,14 +185,14 @@ export default function WorkerWallet() {
 
                 <View style={styles.summaryRow}>
                   <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>Earnings</Text>
+                    <Text style={styles.summaryLabel}>{t("Earnings")}</Text>
                     <Text style={styles.earningSummary}>
                       +₹{Number(summary?.grossEarning || 0).toLocaleString("en-IN")}
                     </Text>
                   </View>
                   <View style={styles.summaryDivider} />
                   <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>Deductions</Text>
+                    <Text style={styles.summaryLabel}>{t("Deductions")}</Text>
                     <Text style={styles.deductionSummary}>
                       -₹{Number(summary?.totalDeductions || 0).toLocaleString("en-IN")}
                     </Text>
@@ -198,19 +200,15 @@ export default function WorkerWallet() {
                 </View>
               </View>
 
-              <Text style={styles.sectionTitle}>Transactions</Text>
-              <Text style={styles.sectionSub}>
-                Earnings and finalized deductions for this week.
-              </Text>
+              <Text style={styles.sectionTitle}>{t("Transactions")}</Text>
+              <Text style={styles.sectionSub}>{t("Earnings and finalized deductions for this week.")}</Text>
             </>
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <WalletCards color="#CBD5E1" size={48} />
-              <Text style={styles.emptyTitle}>No wallet activity</Text>
-              <Text style={styles.emptyText}>
-                This week ke earnings aur deductions yahan dikhengi.
-              </Text>
+              <Text style={styles.emptyTitle}>{t("No wallet activity")}</Text>
+              <Text style={styles.emptyText}>{t("This week ke earnings aur deductions yahan dikhengi.")}</Text>
             </View>
           }
           ListFooterComponent={

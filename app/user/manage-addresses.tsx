@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import * as Location from "expo-location";
@@ -57,6 +58,7 @@ const distanceMeters = (a: Coordinate, b: Coordinate) => {
 };
 
 export default function ManageAddresses() {
+  const { t, entityText } = useI18n();
   const { fromBooking } = useLocalSearchParams<{ fromBooking?: string }>();
   const bookingMode = fromBooking === "1";
   const [customer, setCustomer] = useState<any>(null);
@@ -101,7 +103,7 @@ export default function ManageAddresses() {
         await fetchAddresses(parsed.id);
       } catch (error) {
         console.log("Load addresses error:", error);
-        Alert.alert("Error", "Saved addresses load nahi ho paye.");
+        Alert.alert(t("Error"), t("Saved addresses load nahi ho paye."));
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -187,7 +189,7 @@ export default function ManageAddresses() {
   const useManualCoordinates = async () => {
     const point = validCoordinate(manualLatitude, manualLongitude);
     if (!point) {
-      Alert.alert("Invalid Coordinates", "Latitude (-90 to 90) aur longitude (-180 to 180) dono sahi enter karein.");
+      Alert.alert(t("Invalid Coordinates"), t("Latitude (-90 to 90) aur longitude (-180 to 180) dono sahi enter karein."));
       return;
     }
     try {
@@ -246,9 +248,9 @@ export default function ManageAddresses() {
   const useAddressForBooking = async (address: any) => {
     const point = validCoordinate(address.latitude, address.longitude);
     if (!point) {
-      Alert.alert("GPS Location Needed", "Is address mein coordinates nahi hain. Edit karke GPS retry karein ya latitude/longitude manually enter karein.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Edit Address", onPress: () => void openEditModal(address) },
+      Alert.alert(t("GPS Location Needed"), t("Is address mein coordinates nahi hain. Edit karke GPS retry karein ya latitude/longitude manually enter karein."), [
+        { text: t("Cancel"), style: "cancel" },
+        { text: t("Edit Address"), onPress: () => void openEditModal(address) },
       ]);
       return;
     }
@@ -273,32 +275,32 @@ export default function ManageAddresses() {
       }
       await AsyncStorage.setItem("newBookingDraft", JSON.stringify(updated));
       if (requiresRematch) {
-        Alert.alert("Work Location Updated", "Address location badli hai. Nearby workers dobara check karna zaroori hai.", [
-          { text: "Continue", onPress: () => router.replace("/user/book-worker-step2") },
+        Alert.alert(t("Work Location Updated"), t("Address location badli hai. Nearby workers dobara check karna zaroori hai."), [
+          { text: t("Continue"), onPress: () => router.replace("/user/book-worker-step2") },
         ]);
       } else router.back();
     } catch (error) {
       console.log("Booking address selection error:", error);
-      Alert.alert("Error", "Booking address select nahi ho paya.");
+      Alert.alert(t("Error"), t("Booking address select nahi ho paya."));
     }
   };
 
   const handleSaveAddress = async () => {
     if (isSaving) return;
-    if (addressLine.trim().length < 5) { Alert.alert("Address Required", "Plot, flat, road aur landmark ke saath complete address likhein."); return; }
-    if (pincode.trim() && !/^\d{6}$/.test(pincode.trim())) { Alert.alert("Invalid Pincode", "Pincode 6 digits ka hona chahiye."); return; }
+    if (addressLine.trim().length < 5) { Alert.alert(t("Address Required"), t("Plot, flat, road aur landmark ke saath complete address likhein.")); return; }
+    if (pincode.trim() && !/^\d{6}$/.test(pincode.trim())) { Alert.alert(t("Invalid Pincode"), t("Pincode 6 digits ka hona chahiye.")); return; }
     // Manual coordinates also work when the user taps Save directly without
     // tapping "Use Entered Coordinates" first.
     const manualEntered = manualLatitude.trim() !== "" || manualLongitude.trim() !== "";
     const typedCoordinate = manualEntered ? validCoordinate(manualLatitude, manualLongitude) : null;
     if (manualEntered && !typedCoordinate) {
-      Alert.alert("Invalid Coordinates", "Valid latitude aur longitude dono enter karein, ya dono fields blank rakhein.");
+      Alert.alert(t("Invalid Coordinates"), t("Valid latitude aur longitude dono enter karein, ya dono fields blank rakhein."));
       return;
     }
     const savedPoint = typedCoordinate || coordinate;
     const wasEditedManually = !!typedCoordinate && (!coordinate ||
       typedCoordinate.latitude !== coordinate.latitude || typedCoordinate.longitude !== coordinate.longitude);
-    if (!customer?.id) { Alert.alert("Session Error", "Please login again."); return; }
+    if (!customer?.id) { Alert.alert(t("Session Error"), t("Please login again.")); return; }
     try {
       setIsSaving(true);
       const payload = {
@@ -323,24 +325,24 @@ export default function ManageAddresses() {
         if (validCoordinate(savedAddress.latitude, savedAddress.longitude)) {
           await useAddressForBooking(savedAddress);
         } else {
-          Alert.alert("Address Saved", "Address save ho gaya. Booking ke nearby workers match karne ke liye GPS retry karein ya latitude/longitude manually enter karein.");
+          Alert.alert(t("Address Saved"), t("Address save ho gaya. Booking ke nearby workers match karne ke liye GPS retry karein ya latitude/longitude manually enter karein."));
         }
       }
     } catch (error: any) {
       console.log("Save address error:", error?.response?.data || error);
-      Alert.alert("Address Save Failed", error?.response?.data?.message || error.message || "Please retry.");
+      Alert.alert(t("Address Save Failed"), error?.response?.data?.message || error.message || "Please retry.");
     } finally { setIsSaving(false); }
   };
 
   const handleDeleteAddress = (addressId: number) => {
-    Alert.alert("Delete Address", "Is saved address ko delete karna hai?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => {
+    Alert.alert(t("Delete Address"), t("Is saved address ko delete karna hai?"), [
+      { text: t("Cancel"), style: "cancel" },
+      { text: t("Delete"), style: "destructive", onPress: async () => {
         try {
           await axios.delete(`${API_URL}/user/customer-addresses/${addressId}`);
           await fetchAddresses(customer.id);
         } catch (error: any) {
-          Alert.alert("Error", error?.response?.data?.message || "Address delete nahi ho paya.");
+          Alert.alert(t("Error"), error?.response?.data?.message || "Address delete nahi ho paya.");
         }
       } },
     ]);
@@ -353,7 +355,7 @@ export default function ManageAddresses() {
       });
       if (response.data.success) await fetchAddresses(customer.id);
     } catch (error: any) {
-      Alert.alert("Error", error?.response?.data?.message || "Default address update failed.");
+      Alert.alert(t("Error"), error?.response?.data?.message || "Default address update failed.");
     }
   };
 
@@ -363,31 +365,31 @@ export default function ManageAddresses() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}><ArrowLeft color="#111827" size={22} /></TouchableOpacity>
-        <View style={{ flex: 1 }}><Text style={styles.headerTitle}>Saved Addresses</Text>
-          <Text style={styles.muted}>{bookingMode ? "Select address for this booking" : "GPS based work-site addresses"}</Text></View>
+        <View style={{ flex: 1 }}><Text style={styles.headerTitle}>{t("Saved Addresses")}</Text>
+          <Text style={styles.muted}>{t(bookingMode ? "Select address for this booking" : "GPS based work-site addresses")}</Text></View>
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity style={styles.addBtn} onPress={() => void openAddModal()}>
-          <Plus color="#fff" size={21} /><Text style={styles.addBtnText}>Add Work Address</Text>
+          <Plus color="#fff" size={21} /><Text style={styles.addBtnText}>{t("Add Work Address")}</Text>
         </TouchableOpacity>
         {!addresses.length && <View style={styles.card}><MapPin size={30} color="#059669" />
-          <Text style={styles.cardTitle}>No address added</Text>
-          <Text style={styles.muted}>GPS use karein, ya address manually enter karein.</Text></View>}
+          <Text style={styles.cardTitle}>{t("No address added")}</Text>
+          <Text style={styles.muted}>{t("GPS use karein, ya address manually enter karein.")}</Text></View>}
         {addresses.map(address => (
           <View key={address.id} style={styles.card}>
             <View style={styles.cardHeading}>
               <Text style={styles.cardTitle}>{address.title || "Work Address"}</Text>
-              {address.isDefault && <Text style={styles.badge}>Default</Text>}
+              {address.isDefault && <Text style={styles.badge}>{t("Default")}</Text>}
             </View>
             <Text style={styles.addressText}>{address.addressLine}</Text>
             {!!address.mapAddress && <Text style={styles.muted}>{address.mapAddress}</Text>}
             <Text style={styles.muted}>{[address.city,address.state,address.pincode].filter(Boolean).join(", ")}</Text>
-            <Text style={styles.muted}>{validCoordinate(address.latitude,address.longitude) ? "✓ Work-site coordinates saved" : "Coordinates not set (manual address only)"}</Text>
+            <Text style={styles.muted}>{t(validCoordinate(address.latitude,address.longitude) ? "✓ Work-site coordinates saved" : "Coordinates not set (manual address only)")}</Text>
             <View style={styles.actionRow}>
               {bookingMode && <TouchableOpacity style={styles.useBtn} onPress={() => void useAddressForBooking(address)}>
-                <Text style={styles.useText}>Use for Booking</Text></TouchableOpacity>}
+                <Text style={styles.useText}>{t("Use for Booking")}</Text></TouchableOpacity>}
               {!address.isDefault && <TouchableOpacity style={styles.actionBtn} onPress={() => void handleSetDefault(address)}>
-                <Text style={styles.actionText}>Set Default</Text></TouchableOpacity>}
+                <Text style={styles.actionText}>{t("Set Default")}</Text></TouchableOpacity>}
               <TouchableOpacity style={styles.iconBtn} onPress={() => void openEditModal(address)}><Edit3 size={19} color="#111827" /></TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn} onPress={() => handleDeleteAddress(address.id)}><Trash2 size={19} color="#DC2626" /></TouchableOpacity>
             </View>
@@ -398,64 +400,64 @@ export default function ManageAddresses() {
       <Modal visible={showModal} transparent animationType="slide" onRequestClose={closeEditor}>
         <View style={styles.overlay}><View style={styles.modalCard}>
           <View style={styles.editorHeader}>
-            <View style={{flex: 1}}><Text style={styles.modalTitle}>{editingAddress ? "Edit Work Address" : "New Work Address"}</Text>
-              <Text style={styles.muted}>GPS optional — manual address bhi save kar sakte hain</Text></View>
+            <View style={{flex: 1}}><Text style={styles.modalTitle}>{t(editingAddress ? "Edit Work Address" : "New Work Address")}</Text>
+              <Text style={styles.muted}>{t("GPS optional — manual address bhi save kar sakte hain")}</Text></View>
             <TouchableOpacity onPress={closeEditor}><X size={24} color="#111827" /></TouchableOpacity>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.locationBox}>
               <View style={styles.cardHeading}>
-                <Text style={styles.cardTitle}>Work Site Location (optional GPS)</Text>
+                <Text style={styles.cardTitle}>{t("Work Site Location (optional GPS)")}</Text>
                 <TouchableOpacity style={styles.refreshBtn} disabled={isLocating} onPress={() => void captureLocation()}>
                   {isLocating ? <ActivityIndicator size="small" color="#065F46" /> : <LocateFixed size={16} color="#065F46" />}
-                  <Text style={styles.refreshText}>Refresh GPS</Text>
+                  <Text style={styles.refreshText}>{t("Refresh GPS")}</Text>
                 </TouchableOpacity>
               </View>
               {coordinate ? <>
-                <Text style={styles.coordinateText}>Latitude: {coordinate.latitude.toFixed(6)}  |  Longitude: {coordinate.longitude.toFixed(6)}</Text>
-                {accuracy != null && <Text style={styles.muted}>GPS accuracy approximately {Math.round(accuracy)} meters</Text>}
+                <Text style={styles.coordinateText}>{t("Latitude: ")}{coordinate.latitude.toFixed(6)}{t(" | Longitude: ")}{coordinate.longitude.toFixed(6)}</Text>
+                {accuracy != null && <Text style={styles.muted}>{t("GPS accuracy approximately ")}{Math.round(accuracy)}{t(" meters")}</Text>}
                 {!!mapAddress && <Text style={styles.addressText}>{mapAddress}</Text>}
                 <View style={styles.successRow}><CheckCircle2 size={16} color="#047857" />
-                  <Text style={styles.successText}>Work-site coordinates captured</Text></View>
+                  <Text style={styles.successText}>{t("Work-site coordinates captured")}</Text></View>
               </> : <TouchableOpacity style={styles.locationPrompt} onPress={() => void captureLocation()}>
                 {isLocating ? <ActivityIndicator color="#047857" /> : <LocateFixed size={26} color="#047857" />}
-                <Text style={styles.addressText}>Tap to fetch work-site location</Text>
+                <Text style={styles.addressText}>{t("Tap to fetch work-site location")}</Text>
               </TouchableOpacity>}
               {!!locationError && <Text style={styles.errorText}>{locationError}</Text>}
-              {!coordinate && <Text style={styles.muted}>GPS optional hai: address manual save ho jayega. Nearby workers dhoondhne ke liye valid coordinates zaroori hain.</Text>}
-              <Text style={styles.label}>Manual Latitude / Longitude (optional)</Text>
+              {!coordinate && <Text style={styles.muted}>{t("GPS optional hai: address manual save ho jayega. Nearby workers dhoondhne ke liye valid coordinates zaroori hain.")}</Text>}
+              <Text style={styles.label}>{t("Manual Latitude / Longitude (optional)")}</Text>
               <View style={styles.coordinateInputs}>
                 <TextInput style={[styles.input, styles.coordinateInput]} keyboardType="numbers-and-punctuation"
-                  placeholder="Latitude" placeholderTextColor="#9CA3AF" value={manualLatitude} onChangeText={setManualLatitude} />
+                  placeholder={t("Latitude")} placeholderTextColor="#9CA3AF" value={manualLatitude} onChangeText={setManualLatitude} />
                 <TextInput style={[styles.input, styles.coordinateInput]} keyboardType="numbers-and-punctuation"
-                  placeholder="Longitude" placeholderTextColor="#9CA3AF" value={manualLongitude} onChangeText={setManualLongitude} />
+                  placeholder={t("Longitude")} placeholderTextColor="#9CA3AF" value={manualLongitude} onChangeText={setManualLongitude} />
               </View>
               <TouchableOpacity style={styles.manualBtn} disabled={isLocating} onPress={() => void useManualCoordinates()}>
-                <Text style={styles.manualBtnText}>Use Entered Coordinates</Text>
+                <Text style={styles.manualBtnText}>{t("Use Entered Coordinates")}</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.label}>Address Name</Text>
-            <TextInput style={styles.input} placeholder="Home, Shop, Site" placeholderTextColor="#9CA3AF" value={title} onChangeText={setTitle} />
-            <Text style={styles.label}>Full Address / Site Description *</Text>
-            <TextInput style={[styles.input, styles.textArea]} multiline placeholder="Plot, room, building, road, area aur nearby landmark" placeholderTextColor="#9CA3AF" value={addressLine} onChangeText={setAddressLine} />
-            <Text style={styles.label}>Landmark (optional)</Text>
-            <TextInput style={styles.input} placeholder="Near landmark" placeholderTextColor="#9CA3AF" value={landmark} onChangeText={setLandmark} />
-            <Text style={styles.label}>City / Area (GPS se auto)</Text>
-            <TextInput style={styles.input} placeholder="City" placeholderTextColor="#9CA3AF" value={city} onChangeText={setCity} />
-            <Text style={styles.label}>State (GPS se auto)</Text>
-            <TextInput style={styles.input} placeholder="State" placeholderTextColor="#9CA3AF" value={stateName} onChangeText={setStateName} />
-            <Text style={styles.label}>Pincode (GPS se auto)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" maxLength={6} placeholder="6 digit pincode" placeholderTextColor="#9CA3AF" value={pincode} onChangeText={setPincode} />
-            <Text style={styles.label}>Contact Name</Text>
-            <TextInput style={styles.input} placeholder="Name" placeholderTextColor="#9CA3AF" value={fullName} onChangeText={setFullName} />
-            <Text style={styles.label}>Contact Phone</Text>
-            <TextInput style={styles.input} keyboardType="phone-pad" placeholder="Phone number" placeholderTextColor="#9CA3AF" value={phone} onChangeText={setPhone} />
+            <Text style={styles.label}>{t("Address Name")}</Text>
+            <TextInput style={styles.input} placeholder={t("Home, Shop, Site")} placeholderTextColor="#9CA3AF" value={title} onChangeText={setTitle} />
+            <Text style={styles.label}>{t("Full Address / Site Description *")}</Text>
+            <TextInput style={[styles.input, styles.textArea]} multiline placeholder={t("Plot, room, building, road, area aur nearby landmark")} placeholderTextColor="#9CA3AF" value={addressLine} onChangeText={setAddressLine} />
+            <Text style={styles.label}>{t("Landmark (optional)")}</Text>
+            <TextInput style={styles.input} placeholder={t("Near landmark")} placeholderTextColor="#9CA3AF" value={landmark} onChangeText={setLandmark} />
+            <Text style={styles.label}>{t("City / Area (GPS se auto)")}</Text>
+            <TextInput style={styles.input} placeholder={t("City")} placeholderTextColor="#9CA3AF" value={city} onChangeText={setCity} />
+            <Text style={styles.label}>{t("State (GPS se auto)")}</Text>
+            <TextInput style={styles.input} placeholder={t("State")} placeholderTextColor="#9CA3AF" value={stateName} onChangeText={setStateName} />
+            <Text style={styles.label}>{t("Pincode (GPS se auto)")}</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" maxLength={6} placeholder={t("6 digit pincode")} placeholderTextColor="#9CA3AF" value={pincode} onChangeText={setPincode} />
+            <Text style={styles.label}>{t("Contact Name")}</Text>
+            <TextInput style={styles.input} placeholder={t("Name")} placeholderTextColor="#9CA3AF" value={fullName} onChangeText={setFullName} />
+            <Text style={styles.label}>{t("Contact Phone")}</Text>
+            <TextInput style={styles.input} keyboardType="phone-pad" placeholder={t("Phone number")} placeholderTextColor="#9CA3AF" value={phone} onChangeText={setPhone} />
             <TouchableOpacity style={styles.checkRow} onPress={() => setIsDefault(!isDefault)}>
               <CheckCircle2 color={isDefault ? "#059669" : "#9CA3AF"} size={22} />
-              <Text style={styles.addressText}>Make default work address</Text>
+              <Text style={styles.addressText}>{t("Make default work address")}</Text>
             </TouchableOpacity>
             <TouchableOpacity disabled={isSaving || isLocating} style={[styles.addBtn, (isSaving || isLocating) && { opacity: 0.5 }]} onPress={() => void handleSaveAddress()}>
-              {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.addBtnText}>{editingAddress ? "Update Address" : "Save Address"}</Text>}
+              {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.addBtnText}>{t(editingAddress ? "Update Address" : "Save Address")}</Text>}
             </TouchableOpacity>
           </ScrollView>
         </View></View>

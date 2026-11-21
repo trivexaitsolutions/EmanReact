@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/worker/duty-in-progress.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -19,6 +20,7 @@ import { API_URL } from "../../constants/api";
 const ENABLE_WORKER_COMPLETE_DUTY = false;
 
 export default function DutyInProgress() {
+  const { t, entityText } = useI18n();
   const [dutyData, setDutyData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
@@ -85,7 +87,7 @@ export default function DutyInProgress() {
 
       if (!session) {
         if (!silent) {
-          Alert.alert("Error", "Worker session missing hai.");
+          Alert.alert(t("Error"), t("Worker session missing hai."));
           router.replace("/worker/login");
         }
         return;
@@ -162,20 +164,20 @@ export default function DutyInProgress() {
   };
 
   const handleCompleteDuty = () => {
-    Alert.alert("Confirm", "Kya aapka kaam khatam ho gaya hai?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("Confirm"), t("Kya aapka kaam khatam ho gaya hai?"), [
+      { text: t("Cancel"), style: "cancel" },
       {
-        text: "Yes, Complete Duty",
+        text: t("Yes, Complete Duty"),
         onPress: async () => {
           try {
             if (!dutyData?.id) {
-              Alert.alert("Error", "Booking ID missing hai.");
+              Alert.alert(t("Error"), t("Booking ID missing hai."));
               return;
             }
 
             const session = await AsyncStorage.getItem("workerSession");
             if (!session) {
-              Alert.alert("Error", "Worker session missing hai.");
+              Alert.alert(t("Error"), t("Worker session missing hai."));
               return;
             }
 
@@ -192,14 +194,14 @@ export default function DutyInProgress() {
               openClientRating(Number(dutyData.id));
             } else {
               Alert.alert(
-                "Failed",
+                t("Failed"),
                 response.data.message || "Duty complete nahi ho payi.",
               );
             }
           } catch (error: any) {
             console.log("Complete duty error:", error?.response?.data || error);
             Alert.alert(
-              "Error",
+              t("Error"),
               error?.response?.data?.message ||
                 "Server error while completing duty.",
             );
@@ -217,7 +219,7 @@ export default function DutyInProgress() {
 
       const session = await AsyncStorage.getItem("workerSession");
       if (!session) {
-        Alert.alert("Error", "Worker session missing hai.");
+        Alert.alert(t("Error"), t("Worker session missing hai."));
         return;
       }
 
@@ -225,7 +227,7 @@ export default function DutyInProgress() {
       const workerId = Number(parsedWorker?.id || 0);
 
       if (!workerId) {
-        Alert.alert("Error", "Worker session missing hai.");
+        Alert.alert(t("Error"), t("Worker session missing hai."));
         return;
       }
 
@@ -233,7 +235,7 @@ export default function DutyInProgress() {
       const phone = response.data?.worker?.mitra?.phone;
 
       if (!response.data?.success || !phone) {
-        Alert.alert("Field Agent Not Found", "Assigned Field Agent ka mobile number available nahi hai.");
+        Alert.alert(t("Field Agent Not Found"), t("Assigned Field Agent ka mobile number available nahi hai."));
         return;
       }
 
@@ -243,7 +245,7 @@ export default function DutyInProgress() {
     } catch (error: any) {
       console.log("Call Field Agent error:", error?.response?.data || error);
       Alert.alert(
-        "Error",
+        t("Error"),
         error?.response?.data?.message || "Field Agent ka number load nahi ho paya.",
       );
     } finally {
@@ -277,7 +279,7 @@ export default function DutyInProgress() {
         <View style={styles.headerCard}>
           <View style={styles.liveBadge}>
             <View style={styles.liveDot} />
-            <Text style={styles.liveText}>On Duty</Text>
+            <Text style={styles.liveText}>{t("On Duty")}</Text>
           </View>
 
           <Text style={styles.headerName}>
@@ -294,7 +296,7 @@ export default function DutyInProgress() {
           <View style={styles.timerIconWrap}>
             <Clock3 color="#10B981" size={34} />
           </View>
-          <Text style={styles.timerLabel}>Time Elapsed</Text>
+          <Text style={styles.timerLabel}>{t("Time Elapsed")}</Text>
           <Text style={styles.timerText}>{formatTime(secondsElapsed)}</Text>
         </View>
 
@@ -313,8 +315,8 @@ export default function DutyInProgress() {
               )}
             </View>
             <View style={styles.callTextWrap}>
-              <Text style={styles.callTitle}>Call Field Agent</Text>
-              <Text style={styles.callSub}>Need help? Tap to call</Text>
+              <Text style={styles.callTitle}>{t("Call Field Agent")}</Text>
+              <Text style={styles.callSub}>{t("Need help? Tap to call")}</Text>
             </View>
           </TouchableOpacity>
 
@@ -324,7 +326,7 @@ export default function DutyInProgress() {
               onPress={handleCompleteDuty}
             >
               <CheckCircle color="#fff" size={22} style={{ marginRight: 10 }} />
-              <Text style={styles.completeBtnText}>Mark as Complete</Text>
+              <Text style={styles.completeBtnText}>{t("Mark as Complete")}</Text>
             </TouchableOpacity>
           )}
         </View>

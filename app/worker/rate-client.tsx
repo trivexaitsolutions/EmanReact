@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/worker/rate-client.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -22,6 +23,7 @@ import {
 import { API_URL } from "../../constants/api";
 
 export default function RateClientScreen() {
+  const { t, entityText } = useI18n();
   const { bookingId } = useLocalSearchParams();
 
   const [workerSession, setWorkerSession] = useState<any>(null);
@@ -52,7 +54,7 @@ export default function RateClientScreen() {
       setWorkerSession(parsedWorker);
 
       if (!bookingId) {
-        Alert.alert("Error", "Booking ID missing");
+        Alert.alert(t("Error"), t("Booking ID missing"));
         router.replace("/worker/dashboard");
         return;
       }
@@ -79,7 +81,7 @@ export default function RateClientScreen() {
       console.log("Rating status error:", error);
       const message =
         error?.response?.data?.message || "Rating data load nahi ho paya.";
-      Alert.alert("Error", message);
+      Alert.alert(t("Error"), message);
       router.replace("/worker/dashboard");
     } finally {
       setIsLoading(false);
@@ -96,7 +98,7 @@ export default function RateClientScreen() {
   const submitRating = async () => {
     try {
       if (!workerSession?.id || !bookingId) {
-        Alert.alert("Error", "Worker ya booking data missing hai.");
+        Alert.alert(t("Error"), t("Worker ya booking data missing hai."));
         return;
       }
 
@@ -113,9 +115,9 @@ export default function RateClientScreen() {
       });
 
       if (response.data.success) {
-        Alert.alert("Thank You", "Client rating submit ho gayi.", [
+        Alert.alert(t("Thank You"), t("Client rating submit ho gayi."), [
           {
-            text: "OK",
+            text: t("OK"),
             onPress: () => {
 router.replace("/worker/dashboard");
             },
@@ -126,7 +128,7 @@ router.replace("/worker/dashboard");
       console.log("Submit client rating error:", error);
       const message =
         error?.response?.data?.message || "Rating submit nahi ho payi.";
-      Alert.alert("Error", message);
+      Alert.alert(t("Error"), message);
     } finally {
       setIsSubmitting(false);
     }
@@ -161,7 +163,7 @@ router.replace("/worker/dashboard");
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loaderText}>Loading rating screen...</Text>
+        <Text style={styles.loaderText}>{t("Loading rating screen...")}</Text>
       </View>
     );
   }
@@ -185,8 +187,8 @@ router.replace("/worker/dashboard");
           </TouchableOpacity>
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Rate Client</Text>
-            <Text style={styles.headerSub}>Sirf rating do</Text>
+            <Text style={styles.headerTitle}>{t("Rate Client")}</Text>
+            <Text style={styles.headerSub}>{t("Sirf rating do")}</Text>
           </View>
         </View>
 
@@ -196,18 +198,17 @@ router.replace("/worker/dashboard");
           </View>
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.clientLabel}>Client</Text>
+            <Text style={styles.clientLabel}>{t("Client")}</Text>
             <Text style={styles.clientName}>
               {bookingData?.customerName || "Client"}
             </Text>
-            <Text style={styles.clientMeta}>
-              Booking #{bookingData?.id || bookingId}
+            <Text style={styles.clientMeta}>{t("Booking #")}{bookingData?.id || bookingId}
             </Text>
           </View>
 
           <View style={styles.completedBadge}>
             <CheckCircle2 color="#047857" size={15} />
-            <Text style={styles.completedText}>Completed</Text>
+            <Text style={styles.completedText}>{t("Completed")}</Text>
           </View>
         </View>
       </View>
@@ -217,15 +218,13 @@ router.replace("/worker/dashboard");
         contentContainerStyle={styles.content}
       >
         <View style={styles.ratingCard}>
-          <Text style={styles.ratingTitle}>How was the client?</Text>
-          <Text style={styles.ratingSub}>
-            Neeche stars par tap karke rating select karo.
-          </Text>
+          <Text style={styles.ratingTitle}>{t("How was the client?")}</Text>
+          <Text style={styles.ratingSub}>{t("Neeche stars par tap karke rating select karo.")}</Text>
 
           <StarSelector value={rating} onChange={handleOverallRatingChange} />
 
           <View style={styles.scorePill}>
-            <Text style={styles.scorePillText}>{rating}/5 Rating</Text>
+            <Text style={styles.scorePillText}>{rating}{t("/5 Rating")}</Text>
           </View>
         </View>
 
@@ -233,7 +232,7 @@ router.replace("/worker/dashboard");
           <TextInput
             value={comment}
             onChangeText={setComment}
-            placeholder="Optional comment"
+            placeholder={t("Optional comment")}
             style={styles.hiddenInput}
           />
         </View>
@@ -247,7 +246,7 @@ router.replace("/worker/dashboard");
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.submitBtnText}>Submit Rating</Text>
+            <Text style={styles.submitBtnText}>{t("Submit Rating")}</Text>
           )}
         </TouchableOpacity>
 
@@ -258,7 +257,7 @@ router.replace("/worker/dashboard");
           }}
           style={styles.skipBtn}
         >
-          <Text style={styles.skipBtnText}>Skip for now</Text>
+          <Text style={styles.skipBtnText}>{t("Skip for now")}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 28 }} />

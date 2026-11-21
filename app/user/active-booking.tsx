@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/user/active-booking.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -59,6 +60,7 @@ const formatTimer = (totalSeconds: number) => {
 };
 
 export default function ActiveBooking() {
+  const { t, entityText } = useI18n();
   const [booking, setBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasScanned, setHasScanned] = useState(false);
@@ -132,11 +134,11 @@ export default function ActiveBooking() {
             completedAlertShownRef.current = true;
 
             Alert.alert(
-              "Work Completed",
-              "Sab workers ne duty complete kar di hai.",
+              t("Work Completed"),
+              t("Sab workers ne duty complete kar di hai."),
               [
                 {
-                  text: "Rate Workers",
+                  text: t("Rate Workers"),
                   onPress: () =>
                     router.replace({
                       pathname: "/user/rating",
@@ -211,7 +213,7 @@ export default function ActiveBooking() {
 
   const handleCall = (phoneNumber: string) => {
     if (!phoneNumber) {
-      Alert.alert("Number Not Available", "Phone number available nahi hai.");
+      Alert.alert(t("Number Not Available"), t("Phone number available nahi hai."));
       return;
     }
     Linking.openURL(`tel:${phoneNumber}`);
@@ -227,7 +229,7 @@ export default function ActiveBooking() {
   const handleCallMitra = () => {
     const agents = getCallableFieldAgents();
     if (agents.length === 0) {
-      Alert.alert("Field Agent Not Available", "Is booking ke worker ya service area se koi Field Agent contact abhi linked nahi hai. Please Admin se contact karein.");
+      Alert.alert(t("Field Agent Not Available"), t("Is booking ke worker ya service area se koi Field Agent contact abhi linked nahi hai. Please Admin se contact karein."));
       return;
     }
     if (agents.length === 1) {
@@ -241,12 +243,12 @@ export default function ActiveBooking() {
     if (isCompletingWorkerId) return;
 
     Alert.alert(
-      "Mark Worker Complete?",
+      t("Mark Worker Complete?"),
       `${workerName || "Worker"} ka kaam complete mark karna hai?`,
       [
-        { text: "No", style: "cancel" },
+        { text: t("No"), style: "cancel" },
         {
-          text: "Yes, Complete",
+          text: t("Yes, Complete"),
           onPress: async () => {
             try {
               setIsCompletingWorkerId(workerId);
@@ -275,7 +277,7 @@ export default function ActiveBooking() {
               await fetchActiveBooking();
             } catch (error: any) {
               Alert.alert(
-                "Unable to Complete",
+                t("Unable to Complete"),
                 error?.response?.data?.message ||
                   error?.message ||
                   "Worker complete nahi ho paya.",
@@ -604,22 +606,15 @@ export default function ActiveBooking() {
             color: "#EF4444",
             marginBottom: 10,
           }}
-        >
-          Oops! Booking details nahi mili.
-        </Text>
+        >{t("Oops! Booking details nahi mili.")}</Text>
         <Text
           style={{ textAlign: "center", color: "#6B7280", marginBottom: 20 }}
-        >
-          Shayad payment verify hone mein time lag raha hai ya server connect
-          nahi ho paya.
-        </Text>
+        >{t("Shayad payment verify hone mein time lag raha hai ya server connect nahi ho paya.")}</Text>
         <TouchableOpacity
           onPress={() => router.replace("/user/dashboard")}
           style={{ backgroundColor: "#000", padding: 15, borderRadius: 10 }}
         >
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>
-            Dashboard par wapas jayen
-          </Text>
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>{t("Dashboard par wapas jayen")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -666,7 +661,7 @@ export default function ActiveBooking() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Live Tracking</Text>
+        <Text style={styles.headerTitle}>{t("Live Tracking")}</Text>
       </View>
 
       {hasWorkerWaitingForArrival && !isBookingCancelled && !allWorkersCancelled && (
@@ -674,10 +669,8 @@ export default function ActiveBooking() {
           <View style={styles.customerScannerCard}>
             <View style={styles.customerScannerTopRow}>
               <View>
-                <Text style={styles.customerScannerTitle}>Verify Worker</Text>
-                <Text style={styles.customerScannerDescription}>
-                  QR scan karein ya niche 6 digit code enter karein.
-                </Text>
+                <Text style={styles.customerScannerTitle}>{t("Verify Worker")}</Text>
+                <Text style={styles.customerScannerDescription}>{t("QR scan karein ya niche 6 digit code enter karein.")}</Text>
               </View>
 
 
@@ -698,14 +691,10 @@ export default function ActiveBooking() {
               ) : (
                 <View style={styles.cameraUnavailableBox}>
                   <QrCode color="#10B981" size={44} />
-                  <Text style={styles.cameraUnavailableTitle}>
-                    Camera unavailable
-                  </Text>
-                  <Text style={styles.cameraUnavailableText}>
-                    Code enter karein ya camera allow karein.
-                  </Text>
+                  <Text style={styles.cameraUnavailableTitle}>{t("Camera unavailable")}</Text>
+                  <Text style={styles.cameraUnavailableText}>{t("Code enter karein ya camera allow karein.")}</Text>
                   <TouchableOpacity onPress={() => void requestCameraPermission()} style={styles.cameraPermissionBtn}>
-                    <Text style={styles.cameraPermissionBtnText}>Allow Camera</Text>
+                    <Text style={styles.cameraPermissionBtnText}>{t("Allow Camera")}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -717,11 +706,11 @@ export default function ActiveBooking() {
 
             <View style={styles.orRow}>
               <View style={styles.orLine} />
-              <Text style={styles.orText}>OR</Text>
+              <Text style={styles.orText}>{t("OR")}</Text>
               <View style={styles.orLine} />
             </View>
 
-            <Text style={styles.manualCodeTitle}>Enter 6 Digit Code</Text>
+            <Text style={styles.manualCodeTitle}>{t("Enter 6 Digit Code")}</Text>
             <View style={styles.manualCodeRow}>
               {manualCodeDigits.map((digit, index) => (
                 <TextInput
@@ -743,10 +732,7 @@ export default function ActiveBooking() {
                 />
               ))}
             </View>
-            <Text style={styles.manualCodeHelp}>
-              Worker ke QR ke niche dikh raha code enter karein. 6 digits complete
-              hote hi verification automatic hogi.
-            </Text>
+            <Text style={styles.manualCodeHelp}>{t("Worker ke QR ke niche dikh raha code enter karein. 6 digits complete hote hi verification automatic hogi.")}</Text>
 
             {!!verificationMessage && (
               <Text style={[styles.inlineVerificationMessage, verificationFailed && styles.inlineVerificationError]}>
@@ -756,9 +742,7 @@ export default function ActiveBooking() {
             {isVerifyingWorker ? (
               <View style={styles.customerScannerLoading}>
                 <ActivityIndicator color="#047857" size="small" />
-                <Text style={styles.customerScannerLoadingText}>
-                  Verifying worker...
-                </Text>
+                <Text style={styles.customerScannerLoadingText}>{t("Verifying worker...")}</Text>
               </View>
             ) : null}
           </View>
@@ -767,8 +751,7 @@ export default function ActiveBooking() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* WORKER LIST */}
-        <Text style={styles.sectionTitle}>
-          Assigned Workers ({booking.workers.length})
+        <Text style={styles.sectionTitle}>{t("Assigned Workers (")}{booking.workers.length})
         </Text>
 
         {/* Worker List ke andar Tick mark dikhane ke liye */}
@@ -850,22 +833,22 @@ export default function ActiveBooking() {
                     <Text style={styles.workerName}>
                       {worker.name || "Worker"}
                     </Text>
-                    <Text style={styles.workerRole}>⭐ Verified Professional</Text>
+                    <Text style={styles.workerRole}>{t("⭐ Verified Professional")}</Text>
                   </View>
                 </View>
 
                 {isCancelled ? (
                   <View style={styles.cancelledBadge}>
                     <XCircle color="#fff" size={15} />
-                    <Text style={styles.cancelledBadgeText}>Cancelled</Text>
+                    <Text style={styles.cancelledBadgeText}>{t("Cancelled")}</Text>
                   </View>
                 ) : isCompleted ? (
                   <View style={styles.completedWorkerBadge}>
-                    <Text style={styles.completedWorkerBadgeText}>Completed ✅</Text>
+                    <Text style={styles.completedWorkerBadgeText}>{t("Completed ✅")}</Text>
                   </View>
                 ) : hasArrived ? (
                   <View style={styles.arrivedBadge}>
-                    <Text style={styles.arrivedBadgeText}>Arrived ✅</Text>
+                    <Text style={styles.arrivedBadgeText}>{t("Arrived ✅")}</Text>
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -926,9 +909,7 @@ export default function ActiveBooking() {
                   {isCompletingWorkerId === workerId ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.workerCompleteBtnText}>
-                      Mark {worker.name || "Worker"} Complete
-                    </Text>
+                    <Text style={styles.workerCompleteBtnText}>{t("Mark ")}{worker.name || "Worker"}{t(" Complete")}</Text>
                   )}
                 </TouchableOpacity>
               ) : null}
@@ -940,10 +921,8 @@ export default function ActiveBooking() {
         <View style={styles.banner}>
           <CheckCircle2 color="#fff" size={32} />
           <View style={{ marginLeft: 15 }}>
-            <Text style={styles.bannerTitle}>Booking Confirmed!</Text>
-            <Text style={styles.bannerSub}>
-              Workers are on their way to your location.
-            </Text>
+            <Text style={styles.bannerTitle}>{t("Booking Confirmed!")}</Text>
+            <Text style={styles.bannerSub}>{t("Workers are on their way to your location.")}</Text>
           </View>
         </View>
 
@@ -954,8 +933,8 @@ export default function ActiveBooking() {
         >
           <Phone color="#FFFFFF" size={22} />
           <View style={styles.callMitraTextWrap}>
-            <Text style={styles.callMitraBtnText}>Call Field Agent</Text>
-            <Text style={styles.callMitraBtnSub}>Need help? Call the Field Agent linked to your worker</Text>
+            <Text style={styles.callMitraBtnText}>{t("Call Field Agent")}</Text>
+            <Text style={styles.callMitraBtnSub}>{t("Need help? Call the Field Agent linked to your worker")}</Text>
           </View>
         </TouchableOpacity>
 
@@ -964,51 +943,45 @@ export default function ActiveBooking() {
         {/* QR Code vs Complete Button Logic */}
         {isBookingCancelled ? (
           <View style={styles.allCancelledCard}>
-            <Text style={styles.allCancelledTitle}>Booking Cancelled</Text>
+            <Text style={styles.allCancelledTitle}>{t("Booking Cancelled")}</Text>
 
-            <Text style={styles.allCancelledDesc}>
-              Aapki booking cancellation request submit ho gayi hai. Aap
-              dashboard par ja sakte hain ya new booking create kar sakte hain.
-            </Text>
+            <Text style={styles.allCancelledDesc}>{t("Aapki booking cancellation request submit ho gayi hai. Aap dashboard par ja sakte hain ya new booking create kar sakte hain.")}</Text>
 
             <View style={styles.cancelledActions}>
               <TouchableOpacity
                 style={styles.dashboardBtn}
                 onPress={() => router.replace("/user/dashboard")}
               >
-                <Text style={styles.dashboardBtnText}>Go to Dashboard</Text>
+                <Text style={styles.dashboardBtnText}>{t("Go to Dashboard")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.newBookingBtn}
                 onPress={handleNewBooking}
               >
-                <Text style={styles.newBookingBtnText}>New Booking</Text>
+                <Text style={styles.newBookingBtnText}>{t("New Booking")}</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : allWorkersCancelled ? (
           <View style={styles.allCancelledCard}>
-            <Text style={styles.allCancelledTitle}>All Workers Cancelled</Text>
+            <Text style={styles.allCancelledTitle}>{t("All Workers Cancelled")}</Text>
 
-            <Text style={styles.allCancelledDesc}>
-              Is booking ke saare workers cancel ho chuke hain. Aap new booking
-              create kar sakte hain ya dashboard par wapas ja sakte hain.
-            </Text>
+            <Text style={styles.allCancelledDesc}>{t("Is booking ke saare workers cancel ho chuke hain. Aap new booking create kar sakte hain ya dashboard par wapas ja sakte hain.")}</Text>
 
             <View style={styles.cancelledActions}>
               <TouchableOpacity
                 style={styles.dashboardBtn}
                 onPress={() => router.replace("/user/dashboard")}
               >
-                <Text style={styles.dashboardBtnText}>Go to Dashboard</Text>
+                <Text style={styles.dashboardBtnText}>{t("Go to Dashboard")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.newBookingBtn}
                 onPress={handleNewBooking}
               >
-                <Text style={styles.newBookingBtnText}>New Booking</Text>
+                <Text style={styles.newBookingBtnText}>{t("New Booking")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1017,18 +990,13 @@ export default function ActiveBooking() {
           null
         ) : allActiveWorkersArrived && activeIncompleteWorkers.length > 0 ? (
           <View style={styles.completeCard}>
-            <Text style={styles.qrTitle}>Work in Progress</Text>
-            <Text style={styles.qrDesc}>
-              Har worker ka timer upar dikh raha hai. Jiska kaam complete ho,
-              usi worker ko separately Mark Complete karein.
-            </Text>
+            <Text style={styles.qrTitle}>{t("Work in Progress")}</Text>
+            <Text style={styles.qrDesc}>{t("Har worker ka timer upar dikh raha hai. Jiska kaam complete ho, usi worker ko separately Mark Complete karein.")}</Text>
           </View>
         ) : (
           <View style={styles.completeCard}>
-            <Text style={styles.qrTitle}>Workers Completed</Text>
-            <Text style={styles.qrDesc}>
-              Completed workers release ho chuke hain.
-            </Text>
+            <Text style={styles.qrTitle}>{t("Workers Completed")}</Text>
+            <Text style={styles.qrDesc}>{t("Completed workers release ho chuke hain.")}</Text>
           </View>
         )}
 
@@ -1038,8 +1006,8 @@ export default function ActiveBooking() {
       <Modal visible={showFieldAgentPicker} transparent animationType="slide" onRequestClose={() => setShowFieldAgentPicker(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Call Field Agent</Text>
-            <Text style={styles.modalSubTitle}>Select the agent linked to your booked worker.</Text>
+            <Text style={styles.modalTitle}>{t("Call Field Agent")}</Text>
+            <Text style={styles.modalSubTitle}>{t("Select the agent linked to your booked worker.")}</Text>
             <ScrollView style={{ maxHeight: 330 }}>
               {getCallableFieldAgents().map((agent: any) => (
                 <TouchableOpacity
@@ -1056,7 +1024,7 @@ export default function ActiveBooking() {
               ))}
             </ScrollView>
             <TouchableOpacity onPress={() => setShowFieldAgentPicker(false)} style={styles.fieldAgentClose}>
-              <Text style={styles.fieldAgentCloseText}>Close</Text>
+              <Text style={styles.fieldAgentCloseText}>{t("Close")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1070,15 +1038,11 @@ export default function ActiveBooking() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Cancel / Raise Issue</Text>
-            <Text style={styles.modalSubTitle}>
-              Please select why you want to cancel or raise an issue.
-            </Text>
+            <Text style={styles.modalTitle}>{t("Cancel / Raise Issue")}</Text>
+            <Text style={styles.modalSubTitle}>{t("Please select why you want to cancel or raise an issue.")}</Text>
 
             <View style={styles.cancelTypeBox}>
-              <Text style={styles.cancelTypeTitle}>
-                What do you want to cancel?
-              </Text>
+              <Text style={styles.cancelTypeTitle}>{t("What do you want to cancel?")}</Text>
 
               <View style={styles.cancelTypeOptions}>
                 <TouchableOpacity
@@ -1096,9 +1060,7 @@ export default function ActiveBooking() {
                       styles.cancelTypeText,
                       cancelType === "BOOKING" && styles.cancelTypeTextSelected,
                     ]}
-                  >
-                    Whole Booking
-                  </Text>
+                  >{t("Whole Booking")}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1113,18 +1075,14 @@ export default function ActiveBooking() {
                       styles.cancelTypeText,
                       cancelType === "WORKER" && styles.cancelTypeTextSelected,
                     ]}
-                  >
-                    Specific Worker
-                  </Text>
+                  >{t("Specific Worker")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {cancelType === "WORKER" && (
               <View style={styles.workerSelectBox}>
-                <Text style={styles.workerSelectTitle}>
-                  Select worker(s) to cancel
-                </Text>
+                <Text style={styles.workerSelectTitle}>{t("Select worker(s) to cancel")}</Text>
 
                 {booking.workers.map((worker: any) => {
                   const isSelected = selectedWorkerIds.includes(
@@ -1150,8 +1108,7 @@ export default function ActiveBooking() {
                           {worker.name || "Worker"}
                         </Text>
 
-                        <Text style={styles.workerSelectSub}>
-                          Tap to {isSelected ? "remove" : "select"}
+                        <Text style={styles.workerSelectSub}>{t("Tap to ")}{isSelected ? "remove" : "select"}
                         </Text>
                       </View>
 
@@ -1198,7 +1155,7 @@ export default function ActiveBooking() {
             {selectedIssueReason === "Other" && (
               <TextInput
                 style={styles.issueTextArea}
-                placeholder="Describe your issue..."
+                placeholder={t("Describe your issue...")}
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={4}
@@ -1219,14 +1176,14 @@ export default function ActiveBooking() {
                   setSelectedWorkerIds([]);
                 }}
               >
-                <Text style={styles.modalCancelText}>Close</Text>
+                <Text style={styles.modalCancelText}>{t("Close")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.modalSubmitBtn}
                 onPress={handleSubmitIssue}
               >
-                <Text style={styles.modalSubmitText}>Submit Issue</Text>
+                <Text style={styles.modalSubmitText}>{t("Submit Issue")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1245,25 +1202,21 @@ export default function ActiveBooking() {
               <Text style={styles.cancelIconText}>×</Text>
             </View>
 
-            <Text style={styles.workerCancelModalTitle}>
-              Worker Cancelled Duty
-            </Text>
+            <Text style={styles.workerCancelModalTitle}>{t("Worker Cancelled Duty")}</Text>
 
             <Text style={styles.workerCancelModalDesc}>
-              {cancelledWorkerAlert?.workerName || "Worker"} ne duty cancel ki
-              hai.
-            </Text>
+              {cancelledWorkerAlert?.workerName || "Worker"}{t(" ne duty cancel ki hai.")}</Text>
 
             <View style={styles.cancelInfoBox}>
               <View style={styles.cancelInfoRow}>
-                <Text style={styles.cancelInfoLabel}>Reason</Text>
+                <Text style={styles.cancelInfoLabel}>{t("Reason")}</Text>
                 <Text style={styles.cancelInfoValue}>
                   {cancelledWorkerAlert?.reason || "-"}
                 </Text>
               </View>
 
               <View style={styles.cancelInfoRow}>
-                <Text style={styles.cancelInfoLabel}>Worker Amount</Text>
+                <Text style={styles.cancelInfoLabel}>{t("Worker Amount")}</Text>
                 <Text style={styles.cancelInfoAmount}>
                   ₹{cancelledWorkerAlert?.amount || 0}
                 </Text>
@@ -1274,7 +1227,7 @@ export default function ActiveBooking() {
               style={styles.workerCancelModalBtn}
               onPress={() => setShowWorkerCancelModal(false)}
             >
-              <Text style={styles.workerCancelModalBtnText}>Okay, Got It</Text>
+              <Text style={styles.workerCancelModalBtnText}>{t("Okay, Got It")}</Text>
             </TouchableOpacity>
           </View>
         </View>

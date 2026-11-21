@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Stack, router } from "expo-router";
@@ -28,6 +29,7 @@ const getSkillImageUri = (imageUrl?: string | null) => {
 };
 
 export default function BookWorkerStep1() {
+  const { t, entityText } = useI18n();
   const [skills, setSkills] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,7 +57,7 @@ export default function BookWorkerStep1() {
     } catch (error) {
       console.log("Skill load error:", error);
 
-      Alert.alert("Error", "Skills load nahi ho paye. Please try again.");
+      Alert.alert(t("Error"), t("Skills load nahi ho paye. Please try again."));
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +111,7 @@ export default function BookWorkerStep1() {
     );
 
     if (!skill) {
-      Alert.alert("Select Skill", "Please select a skill.");
+      Alert.alert(t("Select Skill"), t("Please select a skill."));
       return;
     }
 
@@ -135,7 +137,7 @@ export default function BookWorkerStep1() {
 
   const handleNext = async () => {
     if (!selectedSkill) {
-      Alert.alert("Select Skill", "Please select the type of worker you need.");
+      Alert.alert(t("Select Skill"), t("Please select the type of worker you need."));
 
       return;
     }
@@ -167,7 +169,7 @@ export default function BookWorkerStep1() {
     } catch (error) {
       console.log("Draft save error:", error);
 
-      Alert.alert("Error", "Booking details save nahi ho payi.");
+      Alert.alert(t("Error"), t("Booking details save nahi ho payi."));
     }
   };
 
@@ -188,7 +190,7 @@ export default function BookWorkerStep1() {
       <BookingStepHeader step={1} />
 
       <ScrollView style={styles.content} contentContainerStyle={{paddingBottom: 22}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Select Skill</Text>
+        <Text style={styles.sectionTitle}>{t("Select Skill")}</Text>
 
         <View style={styles.skillGrid}>
           {skills.slice(0, 3).map((skill: any) => {
@@ -226,7 +228,7 @@ export default function BookWorkerStep1() {
                     isSelected && styles.skillCardTextActive,
                   ]}
                 >
-                  {skill.name}
+                  {entityText("SKILL", skill)}
                 </Text>
               </TouchableOpacity>
             );
@@ -249,20 +251,20 @@ export default function BookWorkerStep1() {
               <View style={styles.viewAllIcon}>
                 <Grid2X2 size={22} color="#16863A" />
               </View>
-              <Text style={styles.viewAllText}>View All</Text>
+              <Text style={styles.viewAllText}>{t("View All")}</Text>
               <Text numberOfLines={1} style={styles.viewAllCount}>
                 {selectedSkill &&
                 !skills
                   .slice(0, 3)
                   .some((skill: any) => Number(skill.id) === selectedSkill)
-                  ? selectedSkillName
-                  : `${skills.length} services`}
+                  ? (entityText("SKILL", skills.find(s => Number(s.id) === Number(selectedSkill))) || selectedSkillName)
+                  : `${skills.length} ${t("services")}`}
               </Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
-        <Text style={styles.sectionTitle}>Minimum Worker Rating</Text>
+        <Text style={styles.sectionTitle}>{t("Minimum Worker Rating")}</Text>
 
         <View style={styles.ratingCard}>
           {[1, 2, 3, 4, 5].map((star) => {
@@ -296,19 +298,17 @@ export default function BookWorkerStep1() {
 
         <Text style={styles.ratingHelper}>
           {minRating === 0
-            ? "Any worker rating is acceptable."
+            ? t("Any worker rating is acceptable.")
             : `${minRating} star & above workers will be considered.`}
         </Text>
 
-        <Text style={styles.sectionTitle}>Number of Workers</Text>
+        <Text style={styles.sectionTitle}>{t("Number of Workers")}</Text>
 
         <View style={styles.workerCountCard}>
           <View>
-            <Text style={styles.workerCountTitle}>Workers Required</Text>
+            <Text style={styles.workerCountTitle}>{t("Workers Required")}</Text>
 
-            <Text style={styles.workerCountHelper}>
-              Select up to 10 workers
-            </Text>
+            <Text style={styles.workerCountHelper}>{t("Select up to 10 workers")}</Text>
           </View>
 
           <View style={styles.counter}>
@@ -338,7 +338,7 @@ export default function BookWorkerStep1() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Work Duration</Text>
+        <Text style={styles.sectionTitle}>{t("Work Duration")}</Text>
         <View style={styles.durationGrid}>
           {([
             { value: "FULL_DAY", label: "Full Day" },
@@ -350,11 +350,11 @@ export default function BookWorkerStep1() {
               accessibilityState={{ selected: duration === option.value }}
               style={[styles.durationChoice, duration === option.value && styles.durationChoiceSelected]}
               onPress={() => setDuration(option.value)}>
-              <Text style={[styles.durationChoiceText, duration === option.value && styles.durationChoiceTextSelected]}>{option.label}</Text>
+              <Text style={[styles.durationChoiceText, duration === option.value && styles.durationChoiceTextSelected]}>{t(option.label)}</Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.durationHelper}>Only workers available for this duration will be shown. Full Day is selected by default.</Text>
+        <Text style={styles.durationHelper}>{t("Only workers available for this duration will be shown. Full Day is selected by default.")}</Text>
 
       </ScrollView>
 
@@ -367,7 +367,7 @@ export default function BookWorkerStep1() {
         <View style={styles.modalOverlay}>
           <View style={styles.skillModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Skill</Text>
+              <Text style={styles.modalTitle}>{t("Select Skill")}</Text>
               <TouchableOpacity
                 style={styles.modalClose}
                 onPress={() => setSkillModalVisible(false)}
@@ -381,7 +381,7 @@ export default function BookWorkerStep1() {
               <TextInput
                 value={skillSearch}
                 onChangeText={setSkillSearch}
-                placeholder="Search skills"
+                placeholder={t("Search skills")}
                 placeholderTextColor="#9A9A9A"
                 style={styles.searchInput}
                 autoCorrect={false}
@@ -432,14 +432,14 @@ export default function BookWorkerStep1() {
                         isSelected && styles.modalSkillNameActive,
                       ]}
                     >
-                      {skill.name}
+                      {entityText("SKILL", skill)}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
 
               {filteredSkills.length === 0 ? (
-                <Text style={styles.noSkillsText}>No skills found</Text>
+                <Text style={styles.noSkillsText}>{t("No skills found")}</Text>
               ) : null}
             </ScrollView>
 
@@ -452,7 +452,7 @@ export default function BookWorkerStep1() {
               onPress={confirmModalSkill}
               disabled={!modalSkillId}
             >
-              <Text style={styles.modalSelectButtonText}>Select</Text>
+              <Text style={styles.modalSelectButtonText}>{t("Select")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -464,7 +464,7 @@ export default function BookWorkerStep1() {
           style={styles.nextButton}
           onPress={handleNext}
         >
-          <Text style={styles.nextButtonText}>Next</Text>
+          <Text style={styles.nextButtonText}>{t("Next")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

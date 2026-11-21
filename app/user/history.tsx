@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/user/history.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -23,6 +24,7 @@ import { API_URL } from "../../constants/api";
 import { formatBookingRupees } from "../../utils/bookingMoney";
 
 export default function BookingHistory() {
+  const { t, entityText } = useI18n();
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -95,21 +97,20 @@ export default function BookingHistory() {
               { color: item.status === "COMPLETED" ? "#059669" : "#D97706" },
             ]}
           >
-            {item.status}
+            {t(String(item.status || "").replace(/_/g, " "))}
           </Text>
         </View>
       </View>
 
       <Text style={styles.nakaName}>
-        {item.naka?.name || "General Booking"}
+        {item.naka?.id ? entityText("NAKA", item.naka) : (item.naka?.name || t("General Booking"))}
       </Text>
 
       <View style={styles.detailsRow}>
         <View style={styles.detailItem}>
           <Users color="#6B7280" size={18} />
           <Text style={styles.detailValue}>
-            {item.workerCount || item.workers?.length} Workers
-          </Text>
+            {item.workerCount || item.workers?.length}{t(" Workers")}</Text>
         </View>
         <View style={styles.detailItem}>
           <Wallet color="#6B7280" size={18} />
@@ -127,7 +128,7 @@ export default function BookingHistory() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft color="#000" size={28} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Booking History</Text>
+        <Text style={styles.headerTitle}>{t("Booking History")}</Text>
       </View>
 
       {isLoading ? (
@@ -143,9 +144,7 @@ export default function BookingHistory() {
       ) : (
         <View style={styles.emptyState}>
           <Clock color="#D1D5DB" size={60} />
-          <Text style={styles.emptyText}>
-            Abhi tak koi bookings nahi ki hain.
-          </Text>
+          <Text style={styles.emptyText}>{t("Abhi tak koi bookings nahi ki hain.")}</Text>
         </View>
       )}
     </SafeAreaView>

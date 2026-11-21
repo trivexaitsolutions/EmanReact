@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n';
 // app/user/rating.tsx
 import { CommonActions } from "@react-navigation/native";
 import axios from "axios";
@@ -55,6 +56,7 @@ const StarRating = ({
 };
 
 export default function RateWorkers() {
+  const { t, entityText } = useI18n();
   const navigation = useNavigation();
   const { bookingId, edit } = useLocalSearchParams();
   const [booking, setBooking] = useState<any>(null);
@@ -135,8 +137,8 @@ export default function RateWorkers() {
 
         if (!allRated) {
           Alert.alert(
-            "Incomplete",
-            "Kripya sabhi workers ko rating dein, ya 'Skip' dabayein.",
+            t("Incomplete"),
+            t("Kripya sabhi workers ko rating dein, ya 'Skip' dabayein."),
           );
           setIsSubmitting(false);
           return;
@@ -156,9 +158,9 @@ export default function RateWorkers() {
       });
 
       if (response.data.success) {
-        Alert.alert("Success!", "Rating save ho gayi hai. Shukriya! 🙏", [
+        Alert.alert(t("Success!"), t("Rating save ho gayi hai. Shukriya! 🙏"), [
           {
-            text: "OK",
+            text: t("OK"),
             onPress: () => {
               navigation.dispatch(
                 CommonActions.reset({
@@ -179,7 +181,7 @@ export default function RateWorkers() {
       }
     } catch (error) {
       console.log("Rating submit error", error);
-      Alert.alert("Error", "Rating save karne mein problem hui.");
+      Alert.alert(t("Error"), t("Rating save karne mein problem hui."));
     } finally {
       setIsSubmitting(false);
     }
@@ -202,7 +204,7 @@ export default function RateWorkers() {
           <ChevronLeft color="#000" size={28} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {edit ? "Edit Ratings" : "Rate Workers"}
+          {t(edit ? "Edit Ratings" : "Rate Workers")}
         </Text>
       </View>
 
@@ -210,9 +212,7 @@ export default function RateWorkers() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <Text style={styles.pageSubtitle}>
-          Help us improve worker quality. Aapka feedback zaroori hai!
-        </Text>
+        <Text style={styles.pageSubtitle}>{t("Help us improve worker quality. Aapka feedback zaroori hai!")}</Text>
 
         {booking?.workers.map((worker: any) => (
           <View key={worker.id} style={styles.workerCard}>
@@ -249,7 +249,7 @@ export default function RateWorkers() {
           onPress={() => submitRatings(true)}
           disabled={isSubmitting}
         >
-          <Text style={styles.skipBtnText}>Skip (Default 4★)</Text>
+          <Text style={styles.skipBtnText}>{t("Skip (Default 4★)")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -261,7 +261,7 @@ export default function RateWorkers() {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.submitBtnText}>
-              {edit ? "Update Ratings" : "Submit All"}
+              {t(edit ? "Update Ratings" : "Submit All")}
             </Text>
           )}
         </TouchableOpacity>

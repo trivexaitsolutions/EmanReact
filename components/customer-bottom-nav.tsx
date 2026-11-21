@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, usePathname } from "expo-router";
 import { BriefcaseBusiness, History, House, UserRound } from "lucide-react-native";
@@ -31,6 +32,7 @@ const getActiveTab = (pathname: string): CustomerTab | null => {
 };
 
 export default function CustomerBottomNav() {
+  const { t } = useI18n();
   const pathname = usePathname();
   const active = getActiveTab(pathname);
 
@@ -62,7 +64,7 @@ export default function CustomerBottomNav() {
             onPress={() => void openTab(tab)}
           >
             <Icon color={isActive ? "#16863A" : "#6B7280"} size={23} strokeWidth={2.2} />
-            <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
+            <Text style={[styles.label, isActive && styles.labelActive]}>{t(tab.label)}</Text>
           </TouchableOpacity>
         );
       })}

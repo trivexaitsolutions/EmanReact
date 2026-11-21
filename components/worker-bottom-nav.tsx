@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { router } from "expo-router";
 import {
   BriefcaseBusiness,
@@ -37,6 +38,7 @@ const tabs: Array<{
 ];
 
 export default function WorkerBottomNav({ active }: { active: WorkerTab }) {
+  const { t } = useI18n();
   return (
     <View style={styles.container}>
       {tabs.map((tab) => {
@@ -54,7 +56,7 @@ export default function WorkerBottomNav({ active }: { active: WorkerTab }) {
           >
             <Icon color={isActive ? "#087C49" : "#6B7280"} size={25} />
             <Text style={[styles.label, isActive && styles.labelActive]}>
-              {tab.label}
+              {t(tab.label)}
             </Text>
             {isActive ? <View style={styles.indicator} /> : null}
           </TouchableOpacity>

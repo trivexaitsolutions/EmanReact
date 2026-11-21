@@ -1,10 +1,12 @@
 // app/_layout.tsx
 import * as Notifications from "expo-notifications";
+import { I18nProvider } from "../i18n";
 import { StatusBar } from "expo-status-bar";
 import { Stack, router, useSegments } from "expo-router";
 import { useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState } from "react-native";
+import { AppState, StyleSheet, View } from "react-native";
+import LanguageQuickSwitcher from "../components/language-quick-switcher";
 import { API_URL } from "../constants/api";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
@@ -21,6 +23,11 @@ Notifications.setNotificationHandler({
 export default function RootLayout() {
   const segments = useSegments();
   const customerArea = segments[0] === "user" && segments[1] !== "login";
+  // Dashboard navbars have an inline switcher. Other customer/worker routes
+  // get the same control in a compact, non-overlapping top navigation strip.
+  const showLanguageBar = (segments[0] === "user" || segments[0] === "worker")
+    && !(segments[0] === "user" && segments[1] === "dashboard")
+    && !(segments[0] === "worker" && segments[1] === "dashboard");
 
   useEffect(() => {
     if (!customerArea) return;
@@ -134,11 +141,18 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <I18nProvider>
     <SafeAreaProvider>
       <StatusBar style="dark" />
       <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }} edges={["top"]}>
+        {showLanguageBar && (
+          <View style={styles.languageNav}>
+            <LanguageQuickSwitcher />
+          </View>
+        )}
         <Stack>
           <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="select-language" options={{ headerShown: false }} />
 
           {/* User Screens */}
           <Stack.Screen name="user/login" options={{ headerShown: false }} />
@@ -193,5 +207,10 @@ export default function RootLayout() {
         </Stack>
       </SafeAreaView>
     </SafeAreaProvider>
+    </I18nProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  languageNav: { backgroundColor: "#FFFFFF", flexDirection: "row", justifyContent: "flex-end", alignItems: "center", paddingHorizontal: 16, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "#E2E8F0" },
+});

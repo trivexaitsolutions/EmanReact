@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const ts=require('typescript');
+const tsPath=require('node:path').join(__dirname,'../i18n/translations.ts');
+const compiled=ts.transpileModule(fs.readFileSync(tsPath,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const exp={};
+vm.runInNewContext(compiled,{exports:exp});
+assert.equal(exp.translate('en','Book New Workers'),'Book New Workers');
+assert.equal(exp.translate('mr','Book New Workers'),'नवीन कामगार बुक करा');
+assert.equal(exp.translate('hi','Book New Workers'),'नए कामगार बुक करें');
+assert.equal(exp.translate('gu','Book New Workers'),'Book New Workers');
+assert.equal(exp.translate('mr','UNKNOWN STRING'),'UNKNOWN STRING');
+assert.equal(exp.translate('hi',' Workers'),' कामगार');
+console.log('UI translations: 6 assertions passed');
