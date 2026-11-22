@@ -71,6 +71,7 @@ export default function BookWorkerStep2() {
   const nearbyRequestRef = useRef(0);
   const addressRequestRef = useRef(0);
 
+  const [assignmentMode, setAssignmentMode] = useState<"AUTO" | "CUSTOMER_SELECT" | undefined>();
   const [draft, setDraft] = useState<BookingDraft>({});
   const [workLocation, setWorkLocation] = useState<{
     latitude: number;
@@ -98,6 +99,7 @@ export default function BookWorkerStep2() {
           );
 
           if (isMounted) {
+            if (["AUTO", "CUSTOMER_SELECT"].includes(optionResponse.data.assignmentMode)) setAssignmentMode(optionResponse.data.assignmentMode);
             setMapSettings({
               radiusMeters:
                 Number(optionResponse.data?.mapSettings?.radiusMeters) ||
@@ -115,6 +117,7 @@ export default function BookWorkerStep2() {
 
         if (!isMounted) return;
         setDraft(parsedDraft);
+        setAssignmentMode(current => current ?? parsedDraft.assignmentMode);
 
         const latitude = Number(parsedDraft.workLatitude);
         const longitude = Number(parsedDraft.workLongitude);
@@ -301,6 +304,7 @@ export default function BookWorkerStep2() {
           ? "CUSTOMER_SELECT"
           : "AUTO";
 
+      setAssignmentMode(assignmentMode);
       const nextDraft: BookingDraft = {
         ...draft,
         assignmentMode,
@@ -339,7 +343,7 @@ export default function BookWorkerStep2() {
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <BookingStepHeader step={2} />
+      <BookingStepHeader step={2} totalSteps={assignmentMode ? (assignmentMode === "CUSTOMER_SELECT" ? 4 : 3) : undefined} />
 
       <View style={styles.content}>
         <View style={styles.sectionHeader}>

@@ -1,4 +1,5 @@
 import { CommonActions } from "@react-navigation/native";
+import { useMitraCall } from "../../utils/useMitraCall";
 import { logoutMobileSession } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -18,7 +19,6 @@ import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -32,6 +32,7 @@ import { API_URL } from "../../constants/api";
 export default function WorkerProfile() {
   const navigation = useNavigation();
   const { t, entityText, language, languages } = useI18n();
+  const { callMitra, busy } = useMitraCall("workerProfile");
   const [profile, setProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -59,27 +60,6 @@ export default function WorkerProfile() {
       void loadProfile();
     }, [loadProfile]),
   );
-
-  const contactSupport = async () => {
-    const phone = String(profile?.mitra?.phone || "").trim();
-    const email = String(profile?.mitra?.email || "").trim();
-
-    try {
-      if (phone) {
-        await Linking.openURL(`tel:${phone}`);
-        return;
-      }
-
-      if (email) {
-        await Linking.openURL(`mailto:${email}`);
-        return;
-      }
-    } catch (error) {
-      console.log("Support contact error:", error);
-    }
-
-    Alert.alert(t("Contact Us"), t("Support contact abhi available nahi hai."));
-  };
 
   const logout = () => {
     Alert.alert(t("Logout"), t("Worker account se logout karein?"), [
@@ -183,7 +163,7 @@ export default function WorkerProfile() {
           )}
         </View>
 
-        <TouchableOpacity style={styles.contactButton} onPress={contactSupport}>
+        <TouchableOpacity style={styles.contactButton} onPress={callMitra} disabled={busy} accessibilityRole="button">
           <PhoneCall color="#FFFFFF" size={20} />
           <Text style={styles.contactButtonText}>{t("Contact Us")}</Text>
         </TouchableOpacity>

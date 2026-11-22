@@ -30,6 +30,7 @@ const getSkillImageUri = (imageUrl?: string | null) => {
 
 export default function BookWorkerStep1() {
   const { t, entityText } = useI18n();
+  const [assignmentMode, setAssignmentMode] = useState<"AUTO" | "CUSTOMER_SELECT" | undefined>();
   const [skills, setSkills] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -53,6 +54,7 @@ export default function BookWorkerStep1() {
 
       if (response.data.success) {
         setSkills(response.data.skills || []);
+        if (["AUTO", "CUSTOMER_SELECT"].includes(response.data.assignmentMode)) setAssignmentMode(response.data.assignmentMode);
       }
     } catch (error) {
       console.log("Skill load error:", error);
@@ -149,6 +151,7 @@ export default function BookWorkerStep1() {
 
       const updatedDraft = {
         ...existingDraft,
+        assignmentMode: assignmentMode ?? existingDraft.assignmentMode,
         skillId: selectedSkill,
         skillName: selectedSkillName,
         minRating,
@@ -187,7 +190,7 @@ export default function BookWorkerStep1() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <BookingStepHeader step={1} />
+      <BookingStepHeader step={1} totalSteps={assignmentMode ? (assignmentMode === "CUSTOMER_SELECT" ? 4 : 3) : undefined} />
 
       <ScrollView style={styles.content} contentContainerStyle={{paddingBottom: 22}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>{t("Select Skill")}</Text>

@@ -11,6 +11,7 @@ import {
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -24,25 +25,30 @@ import { API_URL } from "../../constants/api";
 const PAGE_SIZE = 5;
 
 export default function WorkerWallet() {
-  const { t, entityText } = useI18n();
+  const { t } = useI18n();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
+  const [view, setView] = useState<'weekly' | 'payments'>('weekly');
+  const [error, setError] = useState(false);
+  const requestRef = useRef(0);
   const workerIdRef = useRef<number | null>(null);
   const loadingMoreRef = useRef(false);
 
-  const fetchPage = useCallback(async (targetPage: number, reset = false) => {
+  const fetchPage = useCallback(async (targetPage: number, reset = false, requestedView: 'weekly' | 'payments' = 'weekly') => {
     if (targetPage > 1) {
       if (loadingMoreRef.current) return;
       loadingMoreRef.current = true;
       setIsLoadingMore(true);
     } else {
       setIsLoading(true);
+      setIsLoadingMore(false);
+      setError(false);
     }
-
+    const request = ++requestRef.current;
     try {
       let workerId = workerIdRef.current;
       if (!workerId) {
@@ -56,10 +62,11 @@ export default function WorkerWallet() {
       }
 
       const response = await axios.get(`${API_URL}/worker/wallet/${workerId}`, {
-        params: { page: targetPage, limit: PAGE_SIZE },
+        params: { page: targetPage, limit: PAGE_SIZE, view: requestedView },
       });
 
-      if (!response.data.success) return;
+      if (request !== requestRef.current) return;
+      if (!response.data.success) throw new Error("Wallet request failed");
 
       const incoming = response.data.transactions || [];
       setTransactions((current) =>
@@ -69,11 +76,13 @@ export default function WorkerWallet() {
       setHasMore(Boolean(response.data.pagination?.hasMore));
       setPage(targetPage);
     } catch (error) {
-      console.log("Wallet fetch error:", error);
+      if (request === requestRef.current) setError(true);
     } finally {
-      loadingMoreRef.current = false;
-      setIsLoading(false);
-      setIsLoadingMore(false);
+      if (request === requestRef.current) {
+        loadingMoreRef.current = false;
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
     }
   }, []);
 
@@ -82,24 +91,33 @@ export default function WorkerWallet() {
       setTransactions([]);
       setPage(1);
       setHasMore(false);
-      void fetchPage(1, true);
-    }, [fetchPage]),
+      loadingMoreRef.current = false;
+      setIsLoadingMore(false);
+      setSummary(null);
+      void fetchPage(1, true, view);
+      const subscription=AppState.addEventListener('change',state=>{
+        if(state==='active'){loadingMoreRef.current=false;void fetchPage(1,true,view);}
+      });
+      return () => { subscription.remove(); requestRef.current++; loadingMoreRef.current = false; };
+    }, [fetchPage, view]),
   );
 
   const loadMore = () => {
     if (!hasMore || isLoadingMore || isLoading) return;
-    void fetchPage(page + 1, false);
+    void fetchPage(page + 1, false, view);
   };
 
   const formatRange = () => {
-    if (!summary?.from || !summary?.to) return "This week";
+    if (!summary?.from || !summary?.to) return t("This week");
     const from = new Date(summary.from);
     const to = new Date(new Date(summary.to).getTime() - 1);
     return `${from.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} - ${to.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
   };
 
   const renderTransaction = ({ item }: any) => {
-    const isDeduction = item.type === "DEDUCTION";
+    const isPayout = item.type === "PAYOUT";
+    const isDeduction = item.type === "DEDUCTION" || isPayout;
+    const method = ({CASH: "Cash", UPI: "UPI", BANK: "Bank transfer", OTHER: "Other"} as Record<string, string>)[item.method] || "Other";
 
     return (
       <View style={styles.transactionCard}>
@@ -117,14 +135,15 @@ export default function WorkerWallet() {
         </View>
 
         <View style={styles.transactionCopy}>
-          <Text style={styles.transactionTitle}>{item.title}</Text>
+          <Text style={styles.transactionTitle}>{isPayout ? t("Manual payout") : item.title}</Text>
           <Text numberOfLines={2} style={styles.transactionDescription}>
-            {item.description}
+            {isPayout ? `${t(method)}${item.reference ? ` · ${item.reference}` : ""}` : item.description}
           </Text>
           <Text style={styles.transactionDate}>
             {new Date(item.occurredAt).toLocaleString("en-IN", {
               day: "numeric",
               month: "short",
+              year: "numeric",
               hour: "2-digit",
               minute: "2-digit",
             })}
@@ -137,7 +156,7 @@ export default function WorkerWallet() {
             isDeduction ? styles.amountDeduction : styles.amountEarning,
           ]}
         >
-          {isDeduction ? "-" : "+"}₹{Number(item.amount || 0).toLocaleString("en-IN")}
+          {isPayout && view === "payments" ? "" : isDeduction ? "-" : "+"}₹{Number(item.amount || 0).toLocaleString("en-IN")}
         </Text>
       </View>
     );
@@ -157,10 +176,19 @@ export default function WorkerWallet() {
         <Text style={styles.headerTitle}>{t("Wallet")}</Text>
       </View>
 
+      <View style={styles.tabs}>
+        {(['weekly','payments'] as const).map(tab => (
+          <TouchableOpacity key={tab} accessibilityRole="tab" accessibilityState={{selected:view===tab}} onPress={() => setView(tab)} style={[styles.tab, view===tab && styles.selectedTab]}>
+            <Text style={[styles.tabText, view===tab && styles.selectedTabText]}>{t(tab==='weekly'?'Weekly activity':'Payment History')}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       {isLoading ? (
         <View style={styles.loader}>
           <ActivityIndicator size="large" color="#087C49" />
         </View>
+      ) : error && !summary ? (
+        <View style={styles.loader}><Text style={styles.emptyText}>{t("Unable to load wallet. Please try again.")}</Text><TouchableOpacity style={styles.retry} onPress={() => void fetchPage(1,true,view)}><Text style={styles.selectedTabText}>{t("Retry")}</Text></TouchableOpacity></View>
       ) : (
         <FlatList
           data={transactions}
@@ -169,6 +197,8 @@ export default function WorkerWallet() {
           style={styles.list}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onRefresh={() => { loadingMoreRef.current=false; void fetchPage(1, true, view); }}
+          refreshing={isLoading}
           onEndReached={loadMore}
           onEndReachedThreshold={0.35}
           ListHeaderComponent={
@@ -177,15 +207,17 @@ export default function WorkerWallet() {
                 <View style={styles.walletIconWrap}>
                   <WalletCards color="#087C49" size={28} />
                 </View>
-                <Text style={styles.balanceLabel}>{t("This week balance")}</Text>
+                <Text style={styles.balanceLabel}>{t("Pending payout")}</Text>
                 <Text style={styles.balanceAmount}>
                   ₹{Number(summary?.balance || 0).toLocaleString("en-IN")}
                 </Text>
+                <Text style={styles.rangeText}>{t("All-time balance, including previous weeks.")}</Text>
+                <Text style={styles.rangeText}>{t("Total paid")}: ₹{Number(summary?.totalPaid || 0).toLocaleString("en-IN")}</Text>
                 <Text style={styles.rangeText}>{formatRange()}</Text>
 
                 <View style={styles.summaryRow}>
                   <View style={styles.summaryItem}>
-                    <Text style={styles.summaryLabel}>{t("Earnings")}</Text>
+                    <Text style={styles.summaryLabel}>{t("This week earnings")}</Text>
                     <Text style={styles.earningSummary}>
                       +₹{Number(summary?.grossEarning || 0).toLocaleString("en-IN")}
                     </Text>
@@ -200,15 +232,16 @@ export default function WorkerWallet() {
                 </View>
               </View>
 
-              <Text style={styles.sectionTitle}>{t("Transactions")}</Text>
-              <Text style={styles.sectionSub}>{t("Earnings and finalized deductions for this week.")}</Text>
+              <Text style={styles.sectionTitle}>{t(view==='payments'?'Payment History':'Transactions')}</Text>
+              {view==='weekly' && <Text style={styles.sectionSub}>{t("Earnings and finalized deductions for this week.")}</Text>}
+              {error && <TouchableOpacity style={styles.retry} onPress={()=>void fetchPage(1,true,view)}><Text style={styles.selectedTabText}>{t("Retry")}</Text></TouchableOpacity>}
             </>
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <WalletCards color="#CBD5E1" size={48} />
-              <Text style={styles.emptyTitle}>{t("No wallet activity")}</Text>
-              <Text style={styles.emptyText}>{t("This week ke earnings aur deductions yahan dikhengi.")}</Text>
+              <Text style={styles.emptyTitle}>{t(view === "payments" ? "No payouts recorded yet." : "No wallet activity")}</Text>
+              {view === "weekly" && <Text style={styles.emptyText}>{t("This week ke earnings aur deductions yahan dikhengi.")}</Text>}
             </View>
           }
           ListFooterComponent={
@@ -230,6 +263,12 @@ export default function WorkerWallet() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
+  tabs: { flexDirection: "row", gap: 8, padding: 12, backgroundColor:"#FFFFFF" },
+  tab: { flex: 1, minHeight: 44, borderRadius: 12, padding: 8, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
+  selectedTab: { backgroundColor:"#087C49" },
+  tabText: { color:"#374151", fontSize:14, fontWeight:"700", textAlign:"center" },
+  selectedTabText: { color:"#FFFFFF", fontWeight:"700", textAlign:"center" },
+  retry: { backgroundColor:"#087C49", padding:12, borderRadius:10, margin:12 },
   header: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",

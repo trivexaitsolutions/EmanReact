@@ -1,3 +1,5 @@
+import { useMitraCall } from "../../utils/useMitraCall";
+import { PhoneCall } from "lucide-react-native";
 import { storeMobileToken } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 // app/worker/login.tsx
@@ -23,6 +25,7 @@ import { API_URL } from "../../constants/api";
 
 export default function WorkerLoginScreen() {
   const { t, entityText, refreshTranslations } = useI18n();
+  const { callMitra, busy } = useMitraCall("workerLogin");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState(""); // Backend ke liye variable name password hi rakha hai
   const [isLoading, setIsLoading] = useState(false);
@@ -146,15 +149,10 @@ export default function WorkerLoginScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Footer Links */}
-          <View style={styles.footerLinks}>
-            <TouchableOpacity>
-              <Text style={styles.linkText}>{t("Forgot PIN?")}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 15 }}>
-              <Text style={styles.linkText}>{t("Privacy")}</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.callButton} onPress={callMitra} disabled={busy || isLoading} accessibilityRole="button">
+            {busy ? <ActivityIndicator color="#087C49" /> : <PhoneCall size={20} color="#087C49" />}
+            <Text style={styles.callButtonText}>{t("Call Field Agent")}</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -241,12 +239,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 0.5,
   },
-  footerLinks: {
-    marginTop: 30,
-    alignItems: "flex-start",
+  callButton: {
+    marginTop: 24, borderWidth: 1, borderColor: "#087C49", borderRadius: 12,
+    padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
   },
-  linkText: {
-    color: "#3F51B5",
+  callButtonText: {
+    color: "#087C49",
     fontSize: 15,
     fontWeight: "700",
   },

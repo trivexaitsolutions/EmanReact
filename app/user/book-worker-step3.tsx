@@ -670,7 +670,7 @@ export default function BookWorkerStep3() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.screen}>
-        <BookingStepHeader step={3} disabled={isPaying} />
+        <BookingStepHeader step={draft.assignmentMode === "CUSTOMER_SELECT" ? 4 : 3} totalSteps={draft.assignmentMode === "CUSTOMER_SELECT" ? 4 : 3} disabled={isPaying} />
 
         <ScrollView
           style={{ flex: 1 }}

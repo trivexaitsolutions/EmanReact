@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
-  Dimensions,
+  useWindowDimensions,
   Image,
   SafeAreaView,
   StyleSheet,
@@ -16,10 +16,11 @@ import {
   View,
 } from "react-native";
 
-const { width } = Dimensions.get("window");
 
 export default function RoleSelectionScreen() {
   const { t } = useI18n();
+  const { width, height } = useWindowDimensions();
+  const cardSize = Math.min(width * 0.65, height * 0.30, 300);
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
@@ -96,8 +97,9 @@ export default function RoleSelectionScreen() {
       </View>
       {/* Top Worker Card */}
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, { width: cardSize, height: cardSize }]}
         activeOpacity={0.8}
+        accessibilityRole="button" accessibilityLabel={t("Worker")}
         onPress={() => router.push("/worker/login")}
       >
         <Image
@@ -105,6 +107,7 @@ export default function RoleSelectionScreen() {
           style={styles.image}
           resizeMode="contain"
         />
+        <Text style={styles.roleLabel}>{t("Worker")}</Text>
       </TouchableOpacity>
 
       {/* Center Text */}
@@ -114,8 +117,9 @@ export default function RoleSelectionScreen() {
 
       {/* Bottom User/Company Card */}
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, { width: cardSize, height: cardSize }]}
         activeOpacity={0.8}
+        accessibilityRole="button" accessibilityLabel={t("Customer")}
         onPress={() => router.push("/user/login")}
       >
         <Image
@@ -123,6 +127,7 @@ export default function RoleSelectionScreen() {
           style={styles.image}
           resizeMode="contain"
         />
+        <Text style={styles.roleLabel}>{t("Customer")}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -140,18 +145,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFD23F", // Client's requested yellow background
     justifyContent: "space-evenly",
     alignItems: "center",
-    paddingVertical: 50,
+    paddingVertical: 16,
   },
   languageAction: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: "#FFFFFF", borderRadius: 18 },
   languageText: { fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
   card: {
-    width: width * 0.65,
-    height: width * 0.65,
     backgroundColor: "#FFFFFF",
     borderRadius: 24, // Modern rounded corners
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 12,
     // Premium iOS Shadow
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
@@ -162,13 +165,15 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "85%",
-    height: "85%",
+    flex: 1,
+    minHeight: 0,
   },
+  roleLabel: { fontSize: 20, fontWeight: "800", color: "#171717", textAlign: "center", marginTop: 8 },
   textContainer: {
     marginVertical: 10,
   },
   loginText: {
-    fontSize: 48,
+    fontSize: 32,
     fontWeight: "900",
     color: "#1A1A1A",
     letterSpacing: 3, // Slight spacing for premium look

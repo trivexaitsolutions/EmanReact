@@ -6,7 +6,13 @@ const ts=require('typescript');
 const tsPath=require('node:path').join(__dirname,'../i18n/translations.ts');
 const compiled=ts.transpileModule(fs.readFileSync(tsPath,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const exp={};
-vm.runInNewContext(compiled,{exports:exp});
+// The dictionaries now import extra-translations.ts. Supply that dependency in
+// the sandbox, as the newer language navigation test does.
+const extra={};
+const extraPath=require('node:path').join(__dirname,'../i18n/extra-translations.ts');
+const extraCompiled=ts.transpileModule(fs.readFileSync(extraPath,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+vm.runInNewContext(extraCompiled,{exports:extra});
+vm.runInNewContext(compiled,{exports:exp,require(key){assert.equal(key,'./extra-translations');return extra;}});
 assert.equal(exp.translate('en','Book New Workers'),'Book New Workers');
 assert.equal(exp.translate('mr','Book New Workers'),'नवीन कामगार बुक करा');
 assert.equal(exp.translate('hi','Book New Workers'),'नए कामगार बुक करें');

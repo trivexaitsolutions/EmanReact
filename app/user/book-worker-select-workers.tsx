@@ -27,6 +27,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { BookingProgress } from "../../components/ui/booking-step-header";
 import { API_URL } from "../../constants/api";
 
 type WorkerOption = {
@@ -377,6 +378,8 @@ export default function BookWorkerSelectWorkers() {
           )}
         </TouchableOpacity>
       </View>
+
+      <BookingProgress step={3} totalSteps={4} showCount />
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryTopRow}>

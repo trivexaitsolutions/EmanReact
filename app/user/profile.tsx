@@ -1,3 +1,4 @@
+import { useMitraCall } from "../../utils/useMitraCall";
 import { logoutMobileSession } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -9,8 +10,7 @@ import {
     LogOut,
     MapPin,
     Phone,
-    Settings,
-    Wallet
+    Settings
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
@@ -25,6 +25,7 @@ import {
 
 export default function UserProfile() {
   const { t, language, languages } = useI18n();
+  const { callMitra, busy } = useMitraCall("customer");
   const navigation = useNavigation();
   const [customer, setCustomer] = useState<any>(null);
 
@@ -137,22 +138,8 @@ export default function UserProfile() {
             <ChevronRight color="#9CA3AF" size={22} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuLeft}>
-              <View style={styles.iconBox}>
-                <Wallet color="#10B981" size={22} />
-              </View>
 
-              <View>
-                <Text style={styles.menuTitle}>{t("Wallet")}</Text>
-                <Text style={styles.menuSub}>{t("Payments and refunds")}</Text>
-              </View>
-            </View>
-
-            <ChevronRight color="#9CA3AF" size={22} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={callMitra} disabled={busy} accessibilityRole="button">
             <View style={styles.menuLeft}>
               <View style={styles.iconBox}>
                 <HelpCircle color="#10B981" size={22} />
@@ -160,27 +147,13 @@ export default function UserProfile() {
 
               <View>
                 <Text style={styles.menuTitle}>{t("Support")}</Text>
-                <Text style={styles.menuSub}>{t("Help and contact")}</Text>
+                <Text style={styles.menuSub}>{t("Call Field Agent")}</Text>
               </View>
             </View>
 
             <ChevronRight color="#9CA3AF" size={22} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuLeft}>
-              <View style={styles.iconBox}>
-                <Settings color="#10B981" size={22} />
-              </View>
-
-              <View>
-                <Text style={styles.menuTitle}>{t("Settings")}</Text>
-                <Text style={styles.menuSub}>{t("Preferences and account settings")}</Text>
-              </View>
-            </View>
-
-            <ChevronRight color="#9CA3AF" size={22} />
-          </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>

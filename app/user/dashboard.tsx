@@ -9,12 +9,10 @@ import {
   Clock,
   History,
   Home,
-  MapPin,
   PhoneCall,
   PlusSquare,
   Settings,
   User,
-  Wallet,
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
@@ -28,6 +26,7 @@ import {
 } from "react-native";
 import { API_URL } from "../../constants/api";
 import LanguageQuickSwitcher from "../../components/language-quick-switcher";
+import { useMitraCall } from "../../utils/useMitraCall";
 
 const parseIdList = (value: any): number[] => {
   try {
@@ -115,6 +114,7 @@ const getBookingStatusSubtitle = (booking: any) => {
 
 export default function CustomerDashboard() {
   const { t, entityText } = useI18n();
+  const { callMitra, busy } = useMitraCall("customer");
   const [userData, setUserData] = useState<any>(null);
   const [activeBooking, setActiveBooking] = useState<any>(null);
   const [recentBookings, setRecentBookings] = useState([]);
@@ -209,10 +209,6 @@ export default function CustomerDashboard() {
             <View style={{ flex: 1, minWidth: 0, paddingRight: 6 }}>
               <Text style={styles.greetingText} numberOfLines={1} adjustsFontSizeToFit>{t("Hi, ")}{userData?.name || "User"}! 👋
               </Text>
-              <View style={styles.locationRow}>
-                <MapPin color="#fff" size={14} />
-                <Text style={styles.locationText}>{t("Location")}</Text>
-              </View>
             </View>
             <View style={styles.headerIcons}>
               <LanguageQuickSwitcher onDark />
@@ -275,31 +271,23 @@ export default function CustomerDashboard() {
               onPress={() => router.push("/user/history")}
             >
               <History color="#10B981" size={24} />
-              <View style={{ marginLeft: 12 }}>
+              <View style={styles.gridText}>
                 <Text style={styles.gridItemTitle}>{t("History")}</Text>
                 <Text style={styles.gridItemSub}>{t("Past Bookings")}</Text>
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.gridItem}>
-              <Wallet color="#10B981" size={24} />
-              <View style={{ marginLeft: 12 }}>
-                <Text style={styles.gridItemTitle}>{t("Wallet")}</Text>
-                <Text style={styles.gridItemSub}>{t("Payments")}</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.gridItem}>
+            <TouchableOpacity style={styles.gridItem} onPress={callMitra} disabled={busy} accessibilityRole="button">
               <PhoneCall color="#10B981" size={24} />
-              <View style={{ marginLeft: 12 }}>
+              <View style={styles.gridText}>
                 <Text style={styles.gridItemTitle}>{t("Support")}</Text>
-                <Text style={styles.gridItemSub}>{t("Help & Contact")}</Text>
+                <Text style={styles.gridItemSub}>{t("Call Field Agent")}</Text>
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.gridItem}>
+            <TouchableOpacity style={styles.gridItem} onPress={() => router.push("/user/profile")} accessibilityRole="button">
               <Settings color="#10B981" size={24} />
-              <View style={{ marginLeft: 12 }}>
+              <View style={styles.gridText}>
                 <Text style={styles.gridItemTitle}>{t("Settings")}</Text>
                 <Text style={styles.gridItemSub}>{t("Preferences")}</Text>
               </View>
@@ -430,13 +418,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: 5,
   },
-  locationRow: { flexDirection: "row", alignItems: "center" },
-  locationText: {
-    color: "#ECFDF5",
-    fontSize: 14,
-    marginLeft: 5,
-    fontWeight: "600",
-  },
 
   headerIcons: { flexDirection: "row", alignItems: "center" },
   profileCircle: {
@@ -520,16 +501,16 @@ const styles = StyleSheet.create({
 
   gridContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    gap: 8,
     justifyContent: "space-between",
     marginBottom: 25,
   },
   gridItem: {
     backgroundColor: "#fff",
-    width: "48%",
-    padding: 15,
+    flex: 1,
+    minWidth: 0,
+    padding: 10,
     borderRadius: 16,
-    flexDirection: "row",
     alignItems: "center",
     marginBottom: 15,
     shadowColor: "#000",
@@ -538,8 +519,9 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
-  gridItemTitle: { fontSize: 14, fontWeight: "800", color: "#111827" },
-  gridItemSub: { fontSize: 11, color: "#6B7280", marginTop: 2 },
+  gridText: { alignSelf: "stretch", marginTop: 6, minWidth: 0 },
+  gridItemTitle: { textAlign: "center", fontSize: 13, fontWeight: "800", color: "#111827" },
+  gridItemSub: { textAlign: "center", fontSize: 11, color: "#6B7280", marginTop: 2 },
 
   sectionHeaderRow: {
     flexDirection: "row",
