@@ -1,3 +1,4 @@
+import { storeMobileToken } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 // app/worker/login.tsx
 import axios from "axios";
@@ -48,6 +49,7 @@ export default function WorkerLoginScreen() {
       });
 
       if (response.data.success) {
+        await storeMobileToken(response.data.accessToken, "worker");
         await AsyncStorage.setItem(
           "workerSession",
           JSON.stringify(response.data.worker),

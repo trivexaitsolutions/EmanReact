@@ -1,7 +1,9 @@
+import { CommonActions } from "@react-navigation/native";
+import { logoutMobileSession } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { router, Stack, useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect, useNavigation } from "expo-router";
 import {
   CheckCircle2,
   Clock3,
@@ -37,6 +39,7 @@ type OperationalStatus = {
 };
 
 export default function WorkerDashboard() {
+  const navigation = useNavigation();
   const { t, entityText } = useI18n();
   const [workerData, setWorkerData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -249,10 +252,13 @@ export default function WorkerDashboard() {
         text: t("Yes"),
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.multiRemove([
-            "workerSession", "customerSession", "activeRole", "newBookingDraft",
-          ]);
-          router.replace("/");
+          try {
+            await logoutMobileSession();
+            navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "index" }] }));
+          } catch (error) {
+            console.log("Logout error:", error);
+            Alert.alert(t("Logout Failed"), t("Logout karne mein problem hui. Dobara try karein."));
+          }
         },
       },
     ]);

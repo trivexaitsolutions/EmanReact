@@ -1,7 +1,9 @@
+import { CommonActions } from "@react-navigation/native";
+import { logoutMobileSession } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { Stack, router, useFocusEffect, useNavigation } from "expo-router";
 import {
   BriefcaseBusiness,
   ChevronLeft,
@@ -28,6 +30,7 @@ import WorkerBottomNav from "../../components/worker-bottom-nav";
 import { API_URL } from "../../constants/api";
 
 export default function WorkerProfile() {
+  const navigation = useNavigation();
   const { t, entityText, language, languages } = useI18n();
   const [profile, setProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,10 +88,13 @@ export default function WorkerProfile() {
         text: t("Logout"),
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.multiRemove([
-            "workerSession", "customerSession", "activeRole", "newBookingDraft",
-          ]);
-          router.replace("/");
+          try {
+            await logoutMobileSession();
+            navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "index" }] }));
+          } catch (error) {
+            console.log("Logout error:", error);
+            Alert.alert(t("Logout Failed"), t("Logout karne mein problem hui. Dobara try karein."));
+          }
         },
       },
     ]);

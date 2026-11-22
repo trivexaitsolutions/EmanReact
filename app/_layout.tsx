@@ -1,3 +1,5 @@
+import "../utils/mobileAuthClient";
+import { getMobileToken } from "../utils/mobileAuthClient";
 // app/_layout.tsx
 import * as Notifications from "expo-notifications";
 import { I18nProvider } from "../i18n";
@@ -40,9 +42,11 @@ export default function RootLayout() {
         const id = Number(JSON.parse(session)?.id);
         if (!Number.isInteger(id) || id <= 0) return;
         if (!mounted && online) return;
+        const token = await getMobileToken();
+        if (!token) return;
         await fetch(`${API_URL}/user/presence`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ customerId: id, online }),
         });
       } catch (_) {

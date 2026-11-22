@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { CheckCircle2, MapPin, PhoneCall } from "lucide-react-native";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,7 @@ export default function ActiveDuty() {
   const { t, entityText } = useI18n();
   const [dutyData, setDutyData] = useState<any>(null);
   const [workerSession, setWorkerSession] = useState<any>(null);
+  const [workerQrData, setWorkerQrData] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [isCallingMitra, setIsCallingMitra] = useState(false);
 
@@ -130,6 +131,24 @@ export default function ActiveDuty() {
     }
   };
 
+  useEffect(() => {
+    const bookingId = Number(dutyData?.id);
+    const workerId = Number(workerSession?.id);
+    if (!bookingId || !workerId) return;
+    let active = true;
+    const refreshQr = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/worker/arrival-qr/${bookingId}`);
+        if (active) setWorkerQrData(String(response.data?.qrData || ""));
+      } catch (_) {
+        if (active) setWorkerQrData("");
+      }
+    };
+    void refreshQr();
+    const timer = setInterval(() => { void refreshQr(); }, 45000);
+    return () => { active = false; clearInterval(timer); };
+  }, [dutyData?.id, workerSession?.id]);
+
   if (isLoading) {
     return (
       <View style={styles.loader}>
@@ -140,11 +159,9 @@ export default function ActiveDuty() {
 
   if (!dutyData) return null;
 
-  const workerQrData = JSON.stringify({
-    action: "VERIFY_WORKER_ARRIVAL",
-    bookingId: Number(dutyData.id),
-    workerId: Number(workerSession?.id),
-  });
+  // Fetch short-lived, one-time QR from server. Refresh every 45 seconds;
+  // never display the old insecure bookingId + workerId-only QR.
+  // Hooks must run before conditional returns, so this effect is declared above.
 
   const workAddress =
     dutyData.workLocationText ||
@@ -194,12 +211,12 @@ export default function ActiveDuty() {
           <Text style={styles.cardSub}>{t("Customer ko ye QR scan karne dein.")}</Text>
 
           <View style={styles.qrWrapper}>
-            <QRCode
+            {workerQrData ? <QRCode
               value={workerQrData}
               size={190}
               color="#111827"
               backgroundColor="#FFFFFF"
-            />
+            /> : <Text style={styles.manualCodeHint}>{t("QR is refreshing. Use the manual code below.")}</Text>}
           </View>
 
           <View style={styles.manualCodeBox}>

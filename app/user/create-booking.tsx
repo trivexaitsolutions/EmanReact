@@ -1,8 +1,10 @@
+import { CommonActions } from "@react-navigation/native";
+import { logoutMobileSession } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 // app/user/dashboard.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { Stack, router } from "expo-router";
+import { Stack, router, useNavigation } from "expo-router";
 import {
   CheckCircle2,
   ChevronDown,
@@ -28,6 +30,7 @@ import RazorpayCheckout from "react-native-razorpay";
 import { API_URL } from "../../constants/api";
 
 export default function CustomerDashboard() {
+  const navigation = useNavigation();
   const { t, entityText } = useI18n();
   const [customer, setCustomer] = useState<any>(null);
   const [skills, setSkills] = useState([]);
@@ -88,8 +91,13 @@ export default function CustomerDashboard() {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("customerSession");
-    router.replace("/");
+    try {
+      await logoutMobileSession(true);
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "index" }] }));
+    } catch (error) {
+      console.log("Logout error:", error);
+      Alert.alert(t("Logout Failed"), t("Logout karne mein problem hui. Dobara try karein."));
+    }
   };
 
   const toggleNakaSelection = (id: number) => {

@@ -1,3 +1,4 @@
+import { storeMobileToken } from "../../utils/mobileAuthClient";
 import { useI18n } from '../../i18n';
 // app/user/login.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -164,6 +165,7 @@ export default function CustomerLoginScreen() {
       });
 
       if (response.data.success) {
+        await storeMobileToken(response.data.accessToken, "user");
         await AsyncStorage.setItem(
           "customerSession",
           JSON.stringify(response.data.customer),

@@ -1,3 +1,4 @@
+import { getMobileToken } from "../utils/mobileAuthClient";
 import { useI18n } from '../i18n';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -40,6 +41,13 @@ export default function RoleSelectionScreen() {
       const chosen = await AsyncStorage.getItem("@eman:language:chosen:v1");
       if (!chosen) {
         router.replace("/select-language?initial=1");
+        return;
+      }
+      const token = await getMobileToken();
+      if (!token) {
+        // An old userId-only session is not an authenticated session.
+        await AsyncStorage.multiRemove(['customerSession', 'workerSession', 'activeRole']);
+        setIsChecking(false);
         return;
       }
       const activeRole = await AsyncStorage.getItem("activeRole");

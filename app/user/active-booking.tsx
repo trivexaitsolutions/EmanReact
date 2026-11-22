@@ -401,7 +401,8 @@ export default function ActiveBooking() {
       if (
         qrData?.action !== "VERIFY_WORKER_ARRIVAL" ||
         scannedBookingId !== Number(booking.id) ||
-        !Number.isInteger(scannedWorkerId)
+        !Number.isInteger(scannedWorkerId) ||
+        !/^[A-Za-z0-9_-]{43}$/.test(String(qrData?.token || ""))
       ) {
         throw new Error("INVALID_WORKER_QR");
       }
@@ -419,6 +420,7 @@ export default function ActiveBooking() {
         bookingId: scannedBookingId,
         workerId: scannedWorkerId,
         customerId: Number(booking.customerId),
+        token: String(qrData.token),
       });
 
       if (!response.data.success) {
